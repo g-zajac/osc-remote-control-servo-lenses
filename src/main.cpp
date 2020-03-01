@@ -13,6 +13,10 @@ const unsigned int inPort = 8888;
 
 byte mac[] = { 0x54, 0x34, 0x41, 0x30, 0x30, 0x31 };
 
+unsigned long previousMillis = 0;
+const long interval = 1000;
+int counter = 0;  // for test only
+
 void printIPAddress()
 {
   Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
@@ -27,7 +31,7 @@ void printIPAddress()
   Serial.println();
 }
 
-void pingOSCHandler(OSCMessage &msg, int addrOffset) {
+void servoOSCHandler(OSCMessage &msg, int addrOffset) {
   int inValue = msg.getInt(0);
 
   Serial.print("osc msg value: ");
@@ -67,14 +71,6 @@ void loop() {
 
        //print your local IP address:
        printIPAddress();
-
-       OSCMessage msg("/test");
-       msg.add(100);
-       Udp.beginPacket(targetIP, targetPort);
-       msg.send(Udp); // send the bytes to the SLIP stream
-       Udp.endPacket(); // mark the end of the OSC Packet
-       msg.empty(); // free space occupied by message
-
        break;
 
      case 3:
@@ -110,7 +106,7 @@ void loop() {
 
      // route messages
      if(!msgIn.hasError()) {
-       msgIn.route("/servo", pingOSCHandler);
+       msgIn.route("/servo", servoOSCHandler);
      }
 
      //finish reading this packet:
@@ -122,4 +118,24 @@ void loop() {
 
    }
 
+   unsigned long currentMillis = millis();
+   if (currentMillis - previousMillis >= interval) {
+    // save the last time you blinked the LED
+    previousMillis = currentMillis;
+
+    Serial.print("sending test osc: "); Serial.println(counter);
+
+    //TODO sending blocks receiving
+    OSCMessage msg("/alive");
+    msg.add(counter);
+    Udp.beginPacket(targetIP, targetPort);
+    msg.send(Udp); // send the bytes to the SLIP stream
+    Udp.endPacket(); // mark the end of the OSC Packet
+    msg.empty(); // free space occupied by message
+
+    // restart UDP connection so we are ready to accept incoming ports
+    Udp.stop();
+    Udp.begin(inPort);
+    counter++;
+  }
 }
