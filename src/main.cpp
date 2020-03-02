@@ -2,13 +2,14 @@
 #include <UIPEthernet.h>
 #include <OSCMessage.h>
 #include <OSCBundle.h>
+#include <Servo.h>
 
 // Networking / UDP Setup
 EthernetUDP Udp;
 
 // destination address
 IPAddress targetIP(10, 0, 10, 101);
-const unsigned int targetPort = 1234;
+const unsigned int targetPort = 9999;
 const unsigned int inPort = 8888;
 
 byte mac[] = { 0x54, 0x34, 0x41, 0x30, 0x30, 0x31 };
@@ -16,6 +17,10 @@ byte mac[] = { 0x54, 0x34, 0x41, 0x30, 0x30, 0x31 };
 unsigned long previousMillis = 0;
 const long interval = 1000;
 int counter = 0;  // for test only
+
+int servoPin = 2;
+// Create a servo object
+Servo Servo1;
 
 void printIPAddress()
 {
@@ -36,6 +41,7 @@ void servoOSCHandler(OSCMessage &msg, int addrOffset) {
 
   Serial.print("osc msg value: ");
   Serial.println(inValue);
+  Servo1.write(inValue);
 }
 
 // the setup function runs once when you press reset or power the board
@@ -43,6 +49,13 @@ void setup() {
   Serial.begin(9600);
   // initialize digital pin LED_BUILTIN as an output.
   pinMode(LED_BUILTIN, OUTPUT);
+
+  Servo1.attach(servoPin);
+
+  //quick servo test
+  // Servo1.write(0);
+  // delay(1000);
+  // Servo1.write(90);
 
   // start the Ethernet connection:
   if (Ethernet.begin(mac) == 0) {
@@ -120,18 +133,26 @@ void loop() {
 
    unsigned long currentMillis = millis();
    if (currentMillis - previousMillis >= interval) {
-    // save the last time you blinked the LED
     previousMillis = currentMillis;
 
-    Serial.print("sending test osc: "); Serial.println(counter);
+    Serial.print("sending uptime osc: "); Serial.println(counter);
 
     //TODO sending blocks receiving
-    OSCMessage msg("/alive");
-    msg.add(counter);
+    OSCMessage msgPing("/servo/uptime");
+    msgPing.add(counter);
     Udp.beginPacket(targetIP, targetPort);
-    msg.send(Udp); // send the bytes to the SLIP stream
+    msgPing.send(Udp); // send the bytes to the SLIP stream
     Udp.endPacket(); // mark the end of the OSC Packet
-    msg.empty(); // free space occupied by message
+    msgPing.empty(); // free space occupied by message
+
+    Serial.print("sending servo position osc: "); Serial.println(Servo1.read());
+
+    OSCMessage msgPos("/servo/position");
+    msgPos.add(Servo1.read());
+    Udp.beginPacket(targetIP, targetPort);
+    msgPos.send(Udp); // send the bytes to the SLIP stream
+    Udp.endPacket(); // mark the end of the OSC Packet
+    msgPos.empty(); // free space occupied by message
 
     // restart UDP connection so we are ready to accept incoming ports
     Udp.stop();
