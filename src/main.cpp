@@ -4,17 +4,20 @@
 #include <OSCBundle.h>
 #include <Servo.h>
 #include <Encoder.h>
+//TODO add neopixel lib #include <Adafruit_NeoPixel.h>
 
 // Networking / UDP Setup
 EthernetUDP Udp;
 
-// destination address
+// destination address, Isadora machine, set last octet to 255 for broadcat - send to all
 IPAddress targetIP(10, 0, 10, 101);
 const unsigned int targetPort = 9999;
 const unsigned int inPort = 8888;
 
+// NOTE change in production with multiple units
 byte mac[] = { 0x54, 0x34, 0x41, 0x30, 0x30, 0x31 };
 
+// refresh, update timing to send osc ping, position msg
 unsigned long previousMillis = 0;
 const long interval = 1000;
 int counter = 0;  // for test only
@@ -22,6 +25,7 @@ int counter = 0;  // for test only
 int servoPin = 2;
 // Create a servo object
 Servo Servo1;
+// TODO add global var servo_position
 
 /*
 Rotary encoder wireing
@@ -56,6 +60,7 @@ void servoOSCHandler(OSCMessage &msg, int addrOffset) {
   Serial.print("osc msg value: ");
   Serial.println(inValue);
   Servo1.write(inValue);
+  // NOTE send OSC feedback with new position?
 }
 
 // the setup function runs once when you press reset or power the board
@@ -65,11 +70,6 @@ void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
 
   Servo1.attach(servoPin);
-
-  //quick servo test
-  // Servo1.write(0);
-  // delay(1000);
-  // Servo1.write(90);
 
   // start the Ethernet connection:
   if (Ethernet.begin(mac) == 0) {
@@ -83,7 +83,7 @@ void setup() {
     Udp.begin(inPort);
 }
 
-// the loop function runs over and over again forever
+
 void loop() {
 
   // ethernet
@@ -145,8 +145,9 @@ void loop() {
      //restart UDP connection to receive packets from other clients
      Udp.stop();
      success = Udp.begin(inPort);
-
    }
+
+
 
    unsigned long currentMillis = millis();
    if (currentMillis - previousMillis >= interval) {
