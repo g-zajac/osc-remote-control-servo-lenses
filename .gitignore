@@ -3,5 +3,4 @@
 .gcc-flags.json
 /lib
 /notes
-/doc
 .DS_Store
