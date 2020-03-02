@@ -2,6 +2,7 @@
 #include <UIPEthernet.h>
 #include <OSCMessage.h>
 #include <OSCBundle.h>
+#include <Servo.h>
 
 // Networking / UDP Setup
 EthernetUDP Udp;
@@ -16,6 +17,10 @@ byte mac[] = { 0x54, 0x34, 0x41, 0x30, 0x30, 0x31 };
 unsigned long previousMillis = 0;
 const long interval = 1000;
 int counter = 0;  // for test only
+
+int servoPin = 2;
+// Create a servo object
+Servo Servo1;
 
 void printIPAddress()
 {
@@ -36,6 +41,7 @@ void servoOSCHandler(OSCMessage &msg, int addrOffset) {
 
   Serial.print("osc msg value: ");
   Serial.println(inValue);
+  Servo1.write(inValue);
 }
 
 // the setup function runs once when you press reset or power the board
@@ -43,6 +49,13 @@ void setup() {
   Serial.begin(9600);
   // initialize digital pin LED_BUILTIN as an output.
   pinMode(LED_BUILTIN, OUTPUT);
+
+  Servo1.attach(servoPin);
+
+  //quick servo test
+  // Servo1.write(0);
+  // delay(1000);
+  // Servo1.write(90);
 
   // start the Ethernet connection:
   if (Ethernet.begin(mac) == 0) {
