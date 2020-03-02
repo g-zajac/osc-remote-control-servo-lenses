@@ -188,6 +188,11 @@ void loop() {
     // set limists
     if (knob_position < 0) knob_position = 0;
     if (knob_position > 4*180) knob_position = 4*180;
+
+    // update servo position
+    //TODO sync position with current OSC position value
+    Servo1.write(knob_position);
+    //TODO add manual OSC flag
   };
 
 }
