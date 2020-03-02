@@ -7,9 +7,18 @@ This project solves a problem how to remotly control non-motorized lens. Three c
 ## Concept
 ![flow](doc/flow.png)
 
+
+## Hardware
+* arduino nano
+* ethernet ENC28J60 module
+* mini servo 180deg
+* rotary encoder
+
 ## Built With
+* [Drakon](http://drakon-editor.sourceforge.net) - visual language for flowcahrts
 * [Atom](https://atom.io) - An amazing text editor
 * [PlatformIO](https://platformio.org) - An ecosystem for embedded development
+
 
 ## License
 This project is licensed under [MIT license](http://opensource.org/licenses/mit-license.php)
