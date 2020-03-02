@@ -133,18 +133,26 @@ void loop() {
 
    unsigned long currentMillis = millis();
    if (currentMillis - previousMillis >= interval) {
-    // save the last time you blinked the LED
     previousMillis = currentMillis;
 
-    Serial.print("sending test osc: "); Serial.println(counter);
+    Serial.print("sending uptime osc: "); Serial.println(counter);
 
     //TODO sending blocks receiving
-    OSCMessage msg("/alive");
-    msg.add(counter);
+    OSCMessage msgPing("/servo/uptime");
+    msgPing.add(counter);
     Udp.beginPacket(targetIP, targetPort);
-    msg.send(Udp); // send the bytes to the SLIP stream
+    msgPing.send(Udp); // send the bytes to the SLIP stream
     Udp.endPacket(); // mark the end of the OSC Packet
-    msg.empty(); // free space occupied by message
+    msgPing.empty(); // free space occupied by message
+
+    Serial.print("sending servo position osc: "); Serial.println(Servo1.read());
+
+    OSCMessage msgPos("/servo/position");
+    msgPos.add(Servo1.read());
+    Udp.beginPacket(targetIP, targetPort);
+    msgPos.send(Udp); // send the bytes to the SLIP stream
+    Udp.endPacket(); // mark the end of the OSC Packet
+    msgPos.empty(); // free space occupied by message
 
     // restart UDP connection so we are ready to accept incoming ports
     Udp.stop();
