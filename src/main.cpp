@@ -3,6 +3,7 @@
 #include <OSCMessage.h>
 #include <OSCBundle.h>
 #include <Servo.h>
+#include <Encoder.h>
 
 // Networking / UDP Setup
 EthernetUDP Udp;
@@ -21,6 +22,19 @@ int counter = 0;  // for test only
 int servoPin = 2;
 // Create a servo object
 Servo Servo1;
+
+/*
+Rotary encoder wireing
+[connected to arduino pin]
+[5](1)   A  1         4 -  - brown (4)[16]
+[G](2)   C  2         5 -  -
+[6](3)   B  3    X    6 - Switch -  (5)[15]
+                          7 -
+                          8 - Common GND -  (6)[GND]
+*/
+Encoder knob(6, 5);
+int knob_position  = 0;
+
 
 void printIPAddress()
 {
@@ -71,6 +85,8 @@ void setup() {
 
 // the loop function runs over and over again forever
 void loop() {
+
+  // ethernet
   switch (Ethernet.maintain())
    {
      case 1:
@@ -105,6 +121,7 @@ void loop() {
 
    }
 
+   // OSC
    // read incoming udp packets
    OSCMessage msgIn;
    int size;
@@ -134,6 +151,7 @@ void loop() {
    unsigned long currentMillis = millis();
    if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
+    Serial.print("encoder position: "); Serial.println(knob_position / 4);
 
     Serial.print("sending uptime osc: "); Serial.println(counter);
 
@@ -159,4 +177,22 @@ void loop() {
     Udp.begin(inPort);
     counter++;
   }
+
+  // Encoder
+  // counting the rise/fall from each pin, of which there are four in each notch of the encoder.
+  // jumps by 4
+  long knob_new_position;
+  knob_new_position = knob.read();
+  if (knob_new_position != knob_position){
+    knob_position = knob_new_position;
+    // set limists
+    if (knob_position < 0) knob_position = 0;
+    if (knob_position > 4*180) knob_position = 4*180;
+
+    // update servo position
+    //TODO sync position with current OSC position value
+    Servo1.write(knob_position);
+    //TODO add manual OSC flag
+  };
+
 }
