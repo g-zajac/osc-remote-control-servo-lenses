@@ -151,7 +151,7 @@ void loop() {
    unsigned long currentMillis = millis();
    if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
-    Serial.print("encoder position: "); Serial.println(knob_position);
+    Serial.print("encoder position: "); Serial.println(knob_position / 4);
 
     Serial.print("sending uptime osc: "); Serial.println(counter);
 
@@ -179,10 +179,15 @@ void loop() {
   }
 
   // Encoder
+  // counting the rise/fall from each pin, of which there are four in each notch of the encoder.
+  // jumps by 4
   long knob_new_position;
   knob_new_position = knob.read();
   if (knob_new_position != knob_position){
     knob_position = knob_new_position;
+    // set limists
+    if (knob_position < 0) knob_position = 0;
+    if (knob_position > 4*180) knob_position = 4*180;
   };
 
 }
