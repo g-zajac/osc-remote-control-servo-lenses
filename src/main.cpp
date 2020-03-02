@@ -9,7 +9,7 @@ EthernetUDP Udp;
 
 // destination address
 IPAddress targetIP(10, 0, 10, 101);
-const unsigned int targetPort = 1234;
+const unsigned int targetPort = 9999;
 const unsigned int inPort = 8888;
 
 byte mac[] = { 0x54, 0x34, 0x41, 0x30, 0x30, 0x31 };
