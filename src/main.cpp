@@ -1,3 +1,5 @@
+//#define DEBUG_HARD_SERIAL
+
 #include <Arduino.h>
 #include <UIPEthernet.h>
 #include <OSCMessage.h>
@@ -56,16 +58,20 @@ void printIPAddress()
 
 void servoOSCHandler(OSCMessage &msg, int addrOffset) {
   int inValue = msg.getFloat(0);
-
-  Serial.print("osc msg value: ");
-  Serial.println(inValue);
-  Servo1.write(inValue);
-  // NOTE send OSC feedback with new position?
+  #ifdef DEBUG_HARD_SERIAL
+    Serial.print("osc msg value: ");
+    Serial.println(inValue);
+    Servo1.write(inValue);
+    // NOTE send OSC feedback with new position?
+  #endif
 }
 
 // the setup function runs once when you press reset or power the board
 void setup() {
-  Serial.begin(9600);
+  #ifdef DEBUG_HARD_SERIAL
+    Serial.begin(9600);
+  #endif
+
   // initialize digital pin LED_BUILTIN as an output.
   pinMode(LED_BUILTIN, OUTPUT);
 
@@ -73,9 +79,11 @@ void setup() {
 
   // start the Ethernet connection:
   if (Ethernet.begin(mac) == 0) {
+    #ifdef DEBUG_HARD_SERIAL
       Serial.println("Failed to configure Ethernet using DHCP");
-      // no point in carrying on, so do nothing forevermore:
-      for (;;);
+    #endif
+    // no point in carrying on, so do nothing forevermore:
+    for (;;);
     }
     // print your local IP address:
     printIPAddress();
@@ -91,29 +99,35 @@ void loop() {
    {
      case 1:
        //renewed fail
-       Serial.println("Error: renewed fail");
-       break;
+       #ifdef DEBUG_HARD_SERIAL
+        Serial.println("Error: renewed fail");
+      #endif
+      break;
 
      case 2:
-       //renewed success
-       Serial.println("Renewed success");
-
-       //print your local IP address:
-       printIPAddress();
-       break;
+      //renewed success
+      #ifdef DEBUG_HARD_SERIAL
+        Serial.println("Renewed success");
+      #endif
+      //print your local IP address:
+      printIPAddress();
+      break;
 
      case 3:
-       //rebind fail
-       Serial.println("Error: rebind fail");
-       break;
+      //rebind fail
+      #ifdef DEBUG_HARD_SERIAL
+        Serial.println("Error: rebind fail");
+      #endif
+      break;
 
      case 4:
-       //rebind success
-       Serial.println("Rebind success");
-
-       //print your local IP address:
-       printIPAddress();
-       break;
+      //rebind success
+      #ifdef DEBUG_HARD_SERIAL
+        Serial.println("Rebind success");
+      #endif
+      //print your local IP address:
+      printIPAddress();
+      break;
 
      default:
        //nothing happened
@@ -151,11 +165,12 @@ void loop() {
 
    unsigned long currentMillis = millis();
    if (currentMillis - previousMillis >= interval) {
+    // digitalWrite(LED_BUILTIN, HIGH);
     previousMillis = currentMillis;
-    Serial.print("encoder position: "); Serial.println(knob_position / 4);
-
-    Serial.print("sending uptime osc: "); Serial.println(counter);
-
+    #ifdef DEBUG_HARD_SERIAL
+      Serial.print("encoder position: "); Serial.println(knob_position / 4);
+      Serial.print("sending uptime osc: "); Serial.println(counter);
+    #endif
     //TODO sending blocks receiving
     OSCMessage msgPing("/servo/uptime");
     msgPing.add(counter);
@@ -164,8 +179,10 @@ void loop() {
     Udp.endPacket(); // mark the end of the OSC Packet
     msgPing.empty(); // free space occupied by message
 
-    Serial.print("sending servo position osc: "); Serial.println(Servo1.read());
-
+    #ifdef DEBUG_HARD_SERIAL
+      Serial.print("sending servo position osc: "); Serial.println(Servo1.read());
+    #endif
+    
     OSCMessage msgPos("/servo/position");
     msgPos.add(Servo1.read());
     Udp.beginPacket(targetIP, targetPort);
@@ -177,6 +194,7 @@ void loop() {
     Udp.stop();
     Udp.begin(inPort);
     counter++;
+    // digitalWrite(LED_BUILTIN, LOW);
   }
 
   // Encoder
