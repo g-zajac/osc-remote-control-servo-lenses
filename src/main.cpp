@@ -62,9 +62,10 @@ void servoOSCHandler(OSCMessage &msg, int addrOffset) {
   #ifdef DEBUG_HARD_SERIAL
     Serial.print("osc msg value: ");
     Serial.println(inValue);
-    Servo1.write(inValue);
-    // NOTE send OSC feedback with new position?
   #endif
+  Servo1.write(inValue);
+    // NOTE send OSC feedback with new position?
+
 }
 
 // the setup function runs once when you press reset or power the board
