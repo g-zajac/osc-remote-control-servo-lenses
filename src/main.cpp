@@ -1,4 +1,4 @@
-//#define DEBUG_HARD_SERIAL
+#define DEBUG_HARD_SERIAL
 
 #include <Arduino.h>
 #include <UIPEthernet.h>
@@ -22,7 +22,6 @@ byte mac[] = { 0x54, 0x34, 0x41, 0x30, 0x30, 0x31 };
 // refresh, update timing to send osc ping, position msg
 unsigned long previousMillis = 0;
 const long interval = 1000;
-int counter = 0;  // for test only
 
 int servoPin = 2;
 // Create a servo object
@@ -44,6 +43,7 @@ int knob_position  = 0;
 
 void printIPAddress()
 {
+  #ifdef DEBUG_HARD_SERIAL
   Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
   Serial.print("IP Address        : ");
   Serial.println(Ethernet.localIP());
@@ -54,6 +54,7 @@ void printIPAddress()
   Serial.print("DNS Server IP     : ");
   Serial.println(Ethernet.dnsServerIP());
   Serial.println();
+  #endif
 }
 
 void servoOSCHandler(OSCMessage &msg, int addrOffset) {
@@ -167,13 +168,16 @@ void loop() {
    if (currentMillis - previousMillis >= interval) {
     // digitalWrite(LED_BUILTIN, HIGH);
     previousMillis = currentMillis;
+
+    int uptime = (int)(millis()/1000);
+
     #ifdef DEBUG_HARD_SERIAL
       Serial.print("encoder position: "); Serial.println(knob_position / 4);
-      Serial.print("sending uptime osc: "); Serial.println(counter);
+      Serial.print("sending uptime osc: "); Serial.println(uptime);
     #endif
     //TODO sending blocks receiving
     OSCMessage msgPing("/servo/uptime");
-    msgPing.add(counter);
+    msgPing.add(uptime);
     Udp.beginPacket(targetIP, targetPort);
     msgPing.send(Udp); // send the bytes to the SLIP stream
     Udp.endPacket(); // mark the end of the OSC Packet
@@ -182,7 +186,7 @@ void loop() {
     #ifdef DEBUG_HARD_SERIAL
       Serial.print("sending servo position osc: "); Serial.println(Servo1.read());
     #endif
-    
+
     OSCMessage msgPos("/servo/position");
     msgPos.add(Servo1.read());
     Udp.beginPacket(targetIP, targetPort);
@@ -193,7 +197,6 @@ void loop() {
     // restart UDP connection so we are ready to accept incoming ports
     Udp.stop();
     Udp.begin(inPort);
-    counter++;
     // digitalWrite(LED_BUILTIN, LOW);
   }
 
