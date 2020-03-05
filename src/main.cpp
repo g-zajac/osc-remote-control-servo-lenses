@@ -1,4 +1,4 @@
-#define DEBUG_HARD_SERIAL
+// #define DEBUG_HARD_SERIAL
 
 #include <Arduino.h>
 #include <UIPEthernet.h>
@@ -6,7 +6,7 @@
 #include <OSCBundle.h>
 #include <Servo.h>
 #include <Encoder.h>
-//TODO add neopixel lib #include <Adafruit_NeoPixel.h>
+#include <Adafruit_NeoPixel.h>
 
 // Networking / UDP Setup
 EthernetUDP Udp;
@@ -23,7 +23,7 @@ byte mac[] = { 0x54, 0x34, 0x41, 0x30, 0x30, 0x31 };
 unsigned long previousMillis = 0;
 const long interval = 1000;
 
-int servoPin = 2;
+const int servoPin = 2;
 // Create a servo object
 Servo Servo1;
 // TODO add global var servo_position
@@ -40,22 +40,34 @@ Rotary encoder wireing
 Encoder knob(6, 5);
 int knob_position  = 0;
 
+#define NEOPIXEL_PIN 11
+#define NUMPIXELS 1
 
-void printIPAddress()
-{
-  #ifdef DEBUG_HARD_SERIAL
-  Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
-  Serial.print("IP Address        : ");
-  Serial.println(Ethernet.localIP());
-  Serial.print("Subnet Mask       : ");
-  Serial.println(Ethernet.subnetMask());
-  Serial.print("Default Gateway IP: ");
-  Serial.println(Ethernet.gatewayIP());
-  Serial.print("DNS Server IP     : ");
-  Serial.println(Ethernet.dnsServerIP());
-  Serial.println();
-  #endif
-}
+#include <Adafruit_NeoPixel.h>
+#ifdef __AVR__
+  #include <avr/power.h>
+#endif
+
+Adafruit_NeoPixel pixels(NUMPIXELS, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
+
+// # define LED_PIN 13
+//NOTE colison with ethernet?
+
+// void printIPAddress()
+// {
+//   #ifdef DEBUG_HARD_SERIAL
+//   Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
+//   Serial.print("IP Address        : ");
+//   Serial.println(Ethernet.localIP());
+//   Serial.print("Subnet Mask       : ");
+//   Serial.println(Ethernet.subnetMask());
+//   Serial.print("Default Gateway IP: ");
+//   Serial.println(Ethernet.gatewayIP());
+//   Serial.print("DNS Server IP     : ");
+//   Serial.println(Ethernet.dnsServerIP());
+//   Serial.println();
+//   #endif
+// }
 
 void servoOSCHandler(OSCMessage &msg, int addrOffset) {
   int inValue = msg.getFloat(0);
@@ -74,8 +86,23 @@ void setup() {
     Serial.begin(9600);
   #endif
 
-  // initialize digital pin LED_BUILTIN as an output.
-  pinMode(LED_BUILTIN, OUTPUT);
+  #if defined(__AVR_ATtiny85__) && (F_CPU == 16000000)
+    clock_prescale_set(clock_div_1);
+  #endif
+  
+  pixels.begin();
+  // pixels.clear();
+
+  // initialize digital pin LED_PIN as an output.
+  // pinMode(LED_PIN, OUTPUT);
+  // digitalWrite(LED_PIN, HIGH);
+  // delay(1000);
+  // digitalWrite(LED_PIN, LOW);
+  // delay(1000);
+  // digitalWrite(LED_PIN, HIGH);
+
+  pixels.setPixelColor(0, pixels.Color(50, 0, 0));
+  pixels.show();
 
   Servo1.attach(servoPin);
 
@@ -88,9 +115,15 @@ void setup() {
     for (;;);
     }
     // print your local IP address:
-    printIPAddress();
+    // printIPAddress();
+    #ifdef DEBUG_HARD_SERIAL
+      Serial.println("Connected");
+    #endif
 
     Udp.begin(inPort);
+
+    pixels.setPixelColor(0, pixels.Color(0, 0, 30));
+    pixels.show();
 }
 
 
@@ -104,6 +137,9 @@ void loop() {
        #ifdef DEBUG_HARD_SERIAL
         Serial.println("Error: renewed fail");
       #endif
+      // digitalWrite(LED_PIN, LOW);
+      pixels.setPixelColor(0, pixels.Color(50, 0, 0));
+      pixels.show();
       break;
 
      case 2:
@@ -111,8 +147,11 @@ void loop() {
       #ifdef DEBUG_HARD_SERIAL
         Serial.println("Renewed success");
       #endif
+      // digitalWrite(LED_PIN, HIGH);
+      pixels.setPixelColor(0, pixels.Color(0, 0, 30));
+      pixels.show();
       //print your local IP address:
-      printIPAddress();
+      // printIPAddress();
       break;
 
      case 3:
@@ -120,6 +159,9 @@ void loop() {
       #ifdef DEBUG_HARD_SERIAL
         Serial.println("Error: rebind fail");
       #endif
+      // digitalWrite(LED_PIN, LOW);
+      pixels.setPixelColor(0, pixels.Color(50, 0, 0));
+      pixels.show();
       break;
 
      case 4:
@@ -127,8 +169,11 @@ void loop() {
       #ifdef DEBUG_HARD_SERIAL
         Serial.println("Rebind success");
       #endif
+      // digitalWrite(LED_PIN, HIGH);
+      pixels.setPixelColor(0, pixels.Color(0, 0, 30));
+      pixels.show();
       //print your local IP address:
-      printIPAddress();
+      // printIPAddress();
       break;
 
      default:
@@ -161,14 +206,19 @@ void loop() {
      //restart UDP connection to receive packets from other clients
      Udp.stop();
      success = Udp.begin(inPort);
+
+     pixels.setPixelColor(0, pixels.Color(0, 0, 30));
+     pixels.show();
    }
 
 
 
    unsigned long currentMillis = millis();
    if (currentMillis - previousMillis >= interval) {
-    // digitalWrite(LED_BUILTIN, HIGH);
     previousMillis = currentMillis;
+
+    pixels.setPixelColor(0, pixels.Color(0, 50, 0));
+    pixels.show();
 
     int uptime = (int)(millis()/1000);
 
@@ -198,7 +248,9 @@ void loop() {
     // restart UDP connection so we are ready to accept incoming ports
     Udp.stop();
     Udp.begin(inPort);
-    // digitalWrite(LED_BUILTIN, LOW);
+
+    pixels.setPixelColor(0, pixels.Color(0, 0, 30));
+    pixels.show();
   }
 
   // Encoder
@@ -216,6 +268,8 @@ void loop() {
     //TODO sync position with current OSC position value
     Servo1.write(knob_position);
     //TODO add manual OSC flag
+    pixels.setPixelColor(0, pixels.Color(0, 0, 100));
+    pixels.show();
   };
 
 }
