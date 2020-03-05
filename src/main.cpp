@@ -6,7 +6,7 @@
 #include <OSCBundle.h>
 #include <Servo.h>
 #include <Encoder.h>
-#include <Adafruit_NeoPixel.h>
+// #include <Adafruit_NeoPixel.h>
 
 // Networking / UDP Setup
 EthernetUDP Udp;
@@ -40,15 +40,15 @@ Rotary encoder wireing
 Encoder knob(6, 5);
 int knob_position  = 0;
 
-#define NEOPIXEL_PIN 11
-#define NUMPIXELS 1
+// #define NEOPIXEL_PIN 11
+// #define NUMPIXELS 1
 
-#include <Adafruit_NeoPixel.h>
-#ifdef __AVR__
-  #include <avr/power.h>
-#endif
+// #include <Adafruit_NeoPixel.h>
+// #ifdef __AVR__
+//   #include <avr/power.h>
+// #endif
 
-Adafruit_NeoPixel pixels(NUMPIXELS, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
+// Adafruit_NeoPixel pixels(NUMPIXELS, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
 
 // # define LED_PIN 13
 //NOTE colison with ethernet?
@@ -86,11 +86,11 @@ void setup() {
     Serial.begin(9600);
   #endif
 
-  #if defined(__AVR_ATtiny85__) && (F_CPU == 16000000)
-    clock_prescale_set(clock_div_1);
-  #endif
-  
-  pixels.begin();
+  // #if defined(__AVR_ATtiny85__) && (F_CPU == 16000000)
+  //   clock_prescale_set(clock_div_1);
+  // #endif
+
+  // pixels.begin();
   // pixels.clear();
 
   // initialize digital pin LED_PIN as an output.
@@ -101,8 +101,8 @@ void setup() {
   // delay(1000);
   // digitalWrite(LED_PIN, HIGH);
 
-  pixels.setPixelColor(0, pixels.Color(50, 0, 0));
-  pixels.show();
+  // pixels.setPixelColor(0, pixels.Color(50, 0, 0));
+  // pixels.show();
 
   Servo1.attach(servoPin);
 
@@ -122,8 +122,8 @@ void setup() {
 
     Udp.begin(inPort);
 
-    pixels.setPixelColor(0, pixels.Color(0, 0, 30));
-    pixels.show();
+    // pixels.setPixelColor(0, pixels.Color(0, 0, 30));
+    // pixels.show();
 }
 
 
@@ -138,8 +138,8 @@ void loop() {
         Serial.println("Error: renewed fail");
       #endif
       // digitalWrite(LED_PIN, LOW);
-      pixels.setPixelColor(0, pixels.Color(50, 0, 0));
-      pixels.show();
+      // pixels.setPixelColor(0, pixels.Color(50, 0, 0));
+      // pixels.show();
       break;
 
      case 2:
@@ -148,8 +148,8 @@ void loop() {
         Serial.println("Renewed success");
       #endif
       // digitalWrite(LED_PIN, HIGH);
-      pixels.setPixelColor(0, pixels.Color(0, 0, 30));
-      pixels.show();
+      // pixels.setPixelColor(0, pixels.Color(0, 0, 30));
+      // pixels.show();
       //print your local IP address:
       // printIPAddress();
       break;
@@ -160,8 +160,8 @@ void loop() {
         Serial.println("Error: rebind fail");
       #endif
       // digitalWrite(LED_PIN, LOW);
-      pixels.setPixelColor(0, pixels.Color(50, 0, 0));
-      pixels.show();
+      // pixels.setPixelColor(0, pixels.Color(50, 0, 0));
+      // pixels.show();
       break;
 
      case 4:
@@ -170,8 +170,8 @@ void loop() {
         Serial.println("Rebind success");
       #endif
       // digitalWrite(LED_PIN, HIGH);
-      pixels.setPixelColor(0, pixels.Color(0, 0, 30));
-      pixels.show();
+      // pixels.setPixelColor(0, pixels.Color(0, 0, 30));
+      // pixels.show();
       //print your local IP address:
       // printIPAddress();
       break;
@@ -207,8 +207,8 @@ void loop() {
      Udp.stop();
      success = Udp.begin(inPort);
 
-     pixels.setPixelColor(0, pixels.Color(0, 0, 30));
-     pixels.show();
+     // pixels.setPixelColor(0, pixels.Color(0, 0, 30));
+     // pixels.show();
    }
 
 
@@ -217,8 +217,8 @@ void loop() {
    if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
 
-    pixels.setPixelColor(0, pixels.Color(0, 50, 0));
-    pixels.show();
+    // pixels.setPixelColor(0, pixels.Color(0, 50, 0));
+    // pixels.show();
 
     int uptime = (int)(millis()/1000);
 
@@ -249,8 +249,8 @@ void loop() {
     Udp.stop();
     Udp.begin(inPort);
 
-    pixels.setPixelColor(0, pixels.Color(0, 0, 30));
-    pixels.show();
+    // pixels.setPixelColor(0, pixels.Color(0, 0, 30));
+    // pixels.show();
   }
 
   // Encoder
@@ -268,8 +268,8 @@ void loop() {
     //TODO sync position with current OSC position value
     Servo1.write(knob_position);
     //TODO add manual OSC flag
-    pixels.setPixelColor(0, pixels.Color(0, 0, 100));
-    pixels.show();
+    // pixels.setPixelColor(0, pixels.Color(0, 0, 100));
+    // pixels.show();
   };
 
 }
