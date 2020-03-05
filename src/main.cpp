@@ -6,7 +6,7 @@
 #include <Wire.h>
 #include <Adafruit_PWMServoDriver.h>
 
-// default address 0x40
+// default address 0x40, default board setting
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
 #define SERVOMIN  150 // This is the 'minimum' pulse length count (out of 4096)
@@ -54,9 +54,10 @@ void loop() {
       pwm.setPWM(servonum, 0, pulselen);
     }
 
-    delay(500);
+    delay(3000);
     for (uint16_t pulselen = SERVOMAX; pulselen > SERVOMIN; pulselen--) {
       pwm.setPWM(servonum, 0, pulselen);
     }
+    delay(3000);
 
 }
