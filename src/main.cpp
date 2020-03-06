@@ -1,3 +1,4 @@
+#define FIRMWARE_VERSION 101
 #define SERIAL_DEBUGING     // comment it out to disable serial debuging, for production i.e.
 #define SERIAL_SPEED 115200
 
@@ -9,6 +10,7 @@
 #include <Adafruit_PWMServoDriver.h>
 
 #include <Encoder.h>
+#include <Bounce2.h>
 
 // default address 0x40, default board setting
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
@@ -38,14 +40,30 @@ Rotary encoder wireing
                           7 -
                           8 - Common GND -  (6)[GND]
 */
-Encoder knob(6, 5);
+Encoder knob(5, 6);
 int knob_position  = -999;
-uint8_t knob_scaling_factor = 12;   //higher number, more impulses per 0-180, one knob rotation has 24 jumps
+//******************************************************************************
+uint8_t knob_scaling_factor = 12;  // number of encoder ticks per 0-180 servo movment
+//******************************************************************************
 uint8_t knob_scaled;
 unsigned long previousMillis = 0;
 const long interval = 250;
 
+Bounce debouncer = Bounce(); // Instantiate a Bounce object
+const uint8_t knobButtonPin = 4;
+uint8_t selected_servo = 0;
+
+// define RGB led pins     R G B
+uint8_t rgb_led_pins[] = {7, 8, 9};
+
 //------------------------------ Functions -------------------------------------
+
+void refresh_button_led(uint8_t active_servo){
+  for (uint8_t i = 0; i < 2; i++){
+    if (i == active_servo) digitalWrite(rgb_led_pins[i], LOW);
+    else digitalWrite(rgb_led_pins[i], HIGH);
+  }
+}
 
 #ifdef SERIAL_DEBUGING
 void printIPAddress()
@@ -109,7 +127,7 @@ void updateEncoderPosition(){
       Serial.print(" to "); Serial.println(knob_scaled);
     #endif
 
-    moveMotorToPosition(0, knob_scaled);
+    moveMotorToPosition(selected_servo, knob_scaled);
 
     //TODO sync position with current OSC position value
     //TODO add manual OSC flag
@@ -122,6 +140,17 @@ void setup() {
   #ifdef SERIAL_DEBUGING
     Serial.begin(SERIAL_SPEED);
   #endif
+
+  //set RGB led off
+  for (uint8_t i = 0; i < 2; i++){
+    pinMode(rgb_led_pins[i], OUTPUT);
+    digitalWrite(rgb_led_pins[i], HIGH);
+  }
+
+  // pinMode(knobButtonPin, INPUT);
+  // digitalWrite(knobButtonPin, LOW);  // internal pulldown, button connected to +3V3
+  debouncer.attach(knobButtonPin); // Attach the debouncer to a pin with pull down, switch connected to +3V3
+  debouncer.interval(10); // Use a debounce interval of 25 milliseconds
 
   //initialize servo board
   pwm.begin();
@@ -153,6 +182,18 @@ void setup() {
 
 void loop() {
 
+  debouncer.update();
+  if ( debouncer.rose()){
+    selected_servo ++;
+    if (selected_servo == 3) selected_servo = 0;
+
+    refresh_button_led(selected_servo);
+
+    #ifdef SERIAL_DEBUGING
+     Serial.print("button pressed, current servo: "); Serial.println(selected_servo);
+    #endif
+  }
+
   updateEncoderPosition();
 
   unsigned long currentMillis = millis();
@@ -162,9 +203,6 @@ void loop() {
     //   Serial.print("encoder position = "); Serial.println(knob_position);
     // #endif
   }
-
-
-
 
 
   switch (Ethernet.maintain())
