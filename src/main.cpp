@@ -64,27 +64,25 @@ Rotary encoder wireing
 Encoder knob(ENCODER_A, ENCODER_B);
 int knob_position  = -999;
 //******************************************************************************
-const uint8_t knob_scaling_factor PROGMEM = 12;  // number of encoder ticks per 0-180 servo movment
+const uint8_t knob_scaling_factor = 12;  // number of encoder ticks per 0-180 servo movment
 //******************************************************************************
 uint8_t knob_scaled;
 unsigned long previousMillis = 0;
-const long interval = 3*1000;
+const long interval = 500;
 
 Bounce debouncer = Bounce(); // Instantiate a Bounce object
-
-
 uint8_t selected_servo = 0;
 
 // define RGB led pins     R G B
-const uint8_t rgb_led_pins[] PROGMEM = {ENCODER_LED_R, ENCODER_LED_G, ENCODER_LED_B};
+const uint8_t rgb_led_pins[] = {ENCODER_LED_R, ENCODER_LED_G, ENCODER_LED_B};
 
 // Networking / UDP Setup
 EthernetUDP Udp;
 
 // destination address
 IPAddress targetIP(10, 0, 10, 101);
-const unsigned int targetPort PROGMEM = 9999;
-const unsigned int inPort PROGMEM = 8888;
+const unsigned int targetPort = 9999;
+const unsigned int inPort = 8888;
 
 //------------------------------ Functions -------------------------------------
 
@@ -133,8 +131,8 @@ void updateEncoderPosition(){
 
   if (knob_new_position != knob_position){
     #ifdef SERIAL_DEBUGING
-      Serial.print(F("new = ")); Serial.print(F(knob_new_position));
-      Serial.print(F(", prev = ")); Serial.print(F(knob_position));
+      Serial.print("new = "); Serial.print(knob_new_position);
+      Serial.print(", prev = "); Serial.print(knob_position);
     #endif
     knob_position = knob_new_position;
     // set limists
@@ -215,6 +213,7 @@ void setup() {
   refresh_button_led(selected_servo);
 
   // add pull down resistor 10k
+  pinMode(KNOB_BUTTON_PIN, INPUT);
   debouncer.attach(KNOB_BUTTON_PIN); // Attach the debouncer to a pin with pull down, switch connected to +3V3
   debouncer.interval(10); // Use a debounce interval of 25 milliseconds
 
@@ -265,7 +264,7 @@ void loop() {
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
     #ifdef SERIAL_DEBUGING
-      Serial.print("sending osc");
+      Serial.println("sending osc");
     #endif
     //TODO sending blocks receiving
     OSCMessage msg("/servo/uptime");
