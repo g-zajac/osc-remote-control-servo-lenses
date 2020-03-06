@@ -28,9 +28,36 @@ period 10ms / 50Hz
 byte mac[] = { 0x54, 0x34, 0x41, 0x30, 0x30, 0x31 };
 IPAddress IP(10,0,10,132);
 
+/*
+Rotary encoder wireing
+[connected to arduino pin]
+[5](1)   A  1         4 -  - brown (4)[16]
+[G](2)   C  2         5 -  -
+[6](3)   B  3    X    6 - Switch -  (5)[15]
+                          7 -
+                          8 - Common GND -  (6)[GND]
+*/
+Encoder knob(6, 5);
+int knob_position  = 0;
 
 
+void updateEncoderPosition(){
+  long knob_new_position;
+  knob_new_position = knob.read();
+  if (knob_new_position != knob_position){
+    knob_position = knob_new_position;
+    // set limists
+    if (knob_position < 0) knob_position = 0;
+    if (knob_position > 4*180) knob_position = 4*180;
 
+    #ifdef SERIAL_DEBUGING
+      Serial.print("knob position = "); Serial.println(knob_position);
+    #endif
+    // update servo position
+    //TODO sync position with current OSC position value
+    //TODO add manual OSC flag
+  };
+}
 
 
 #ifdef SERIAL_DEBUGING
@@ -99,6 +126,9 @@ void setup() {
 }
 
 void loop() {
+  updateEncoderPosition();
+
+
 
   switch (Ethernet.maintain())
   {
