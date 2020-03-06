@@ -7,6 +7,8 @@
 #include <Wire.h>
 #include <Adafruit_PWMServoDriver.h>
 
+#include <Encoder.h>
+
 // default address 0x40, default board setting
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
@@ -25,6 +27,11 @@ period 10ms / 50Hz
 // Ethernet MAC address - must be unique on your network - MAC Reads T4A001 in hex (unique in your network)
 byte mac[] = { 0x54, 0x34, 0x41, 0x30, 0x30, 0x31 };
 IPAddress IP(10,0,10,132);
+
+
+
+
+
 
 #ifdef SERIAL_DEBUGING
 void printIPAddress()
