@@ -83,11 +83,7 @@ IPAddress targetIP(10, 0, 10, 101);
 const unsigned int targetPort = 9999;
 const unsigned int inPort = 8888;
 
-// uint8_t servo_1_position = 0;
-// uint8_t servo_2_position = 0;
-// uint8_t servo_3_position = 0;
-
-// uint8_t servo_position[] = {servo_1_position, servo_2_position, servo_3_position};
+// array of servos position: {servo1, servo2, servo3}
 uint8_t servo_position[] = {0, 0, 0};
 
 //------------------------------ Functions -------------------------------------
@@ -115,13 +111,14 @@ void printIPAddress()
     Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
   }
 #endif
+
 int angleToPulse(int angle){
   int pulse_wide = map(angle, 0, 180, MIN_PULSE_WIDTH,MAX_PULSE_WIDTH);   // map angle of 0 to 180 to Servo min and Servo max
   int analog_value = int(float(pulse_wide) / 1000000 * SERVO_FREQ * 4096);
-  #ifdef SERIAL_DEBUGING
-    // Serial.print("Angle: "); Serial.print(angle);
-    // Serial.print(" pulse: "); Serial.println(analog_value);
-  #endif
+  // #ifdef SERIAL_DEBUGING
+  //   Serial.print("Angle: "); Serial.print(angle);
+  //   Serial.print(" pulse: "); Serial.println(analog_value);
+  // #endif
   return analog_value;
 }
 
@@ -338,7 +335,7 @@ void loop() {
 
   //TODO only if connected
   receiveOSC();
-  
+
   unsigned long currentMillis = millis();
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
