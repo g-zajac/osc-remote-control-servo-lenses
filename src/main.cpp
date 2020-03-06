@@ -73,8 +73,8 @@ void setup() {
     printIPAddress();
 
   // initialize digital pin LED_BUILTIN as an output.
-  pinMode(LED_BUILTIN, OUTPUT);
-  digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
+  // pinMode(LED_BUILTIN, OUTPUT);
+  // digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
 }
 
 void loop() {
