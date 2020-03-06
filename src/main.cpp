@@ -40,7 +40,7 @@ Rotary encoder wireing
                           7 -
                           8 - Common GND -  (6)[GND]
 */
-Encoder knob(6, 5);
+Encoder knob(5, 6);
 int knob_position  = -999;
 //******************************************************************************
 uint8_t knob_scaling_factor = 12;  // number of encoder ticks per 0-180 servo movment
@@ -50,8 +50,12 @@ unsigned long previousMillis = 0;
 const long interval = 250;
 
 Bounce debouncer = Bounce(); // Instantiate a Bounce object
-const uint8_t knobButtonPin = 7;
+const uint8_t knobButtonPin = 4;
 uint8_t selected_servo = 0;
+
+#define RGB_LED_PIN_R 7
+#define RGB_LED_PIN_G 8
+#define RGB_LED_PIN_B 9
 
 //------------------------------ Functions -------------------------------------
 
@@ -130,6 +134,15 @@ void setup() {
   #ifdef SERIAL_DEBUGING
     Serial.begin(SERIAL_SPEED);
   #endif
+
+  pinMode(RGB_LED_PIN_R, OUTPUT);
+  pinMode(RGB_LED_PIN_G, OUTPUT);
+  pinMode(RGB_LED_PIN_B, OUTPUT);
+
+  // test
+  // digitalWrite(RGB_LED_PIN_R, LOW);
+  // digitalWrite(RGB_LED_PIN_G, LOW);
+  // digitalWrite(RGB_LED_PIN_B, LOW);
 
   // pinMode(knobButtonPin, INPUT);
   // digitalWrite(knobButtonPin, LOW);  // internal pulldown, button connected to +3V3
