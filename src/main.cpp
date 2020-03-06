@@ -22,7 +22,7 @@ Teensy LC SDA 18, SCL 19
 #include <UIPEthernet.h> // Used for Ethernet
 
 #include <OSCMessage.h>
-#include <OSCBundle.h>
+// #include <OSCBundle.h>
 
 // PCA9685 16-channel PWM servo driver
 #include <Wire.h>
@@ -83,6 +83,13 @@ IPAddress targetIP(10, 0, 10, 101);
 const unsigned int targetPort = 9999;
 const unsigned int inPort = 8888;
 
+uint8_t servo_1_position = 0;
+uint8_t servo_2_position = 0;
+uint8_t servo_3_position = 0;
+
+uint8_t servo_position[] = {servo_1_position, servo_2_position, servo_3_position};
+
+
 //------------------------------ Functions -------------------------------------
 
 void refresh_button_led(uint8_t active_servo){
@@ -108,7 +115,6 @@ void printIPAddress()
     Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
   }
 #endif
-
 int angleToPulse(int angle){
   int pulse_wide = map(angle, 0, 180, MIN_PULSE_WIDTH,MAX_PULSE_WIDTH);   // map angle of 0 to 180 to Servo min and Servo max
   int analog_value = int(float(pulse_wide) / 1000000 * SERVO_FREQ * 4096);
@@ -121,17 +127,18 @@ int angleToPulse(int angle){
 
 void moveMotorToPosition(uint8_t motor, int position_in_degrees){
   pwm.setPWM(motor, 0, angleToPulse(position_in_degrees));
+  servo_position[motor] = position_in_degrees;
 }
 
-void updateEncoderPosition(){
+void readEncoderPosition(){
 
   long knob_new_position;
   knob_new_position = (knob.read() / 4);
 
   if (knob_new_position != knob_position){
     #ifdef SERIAL_DEBUGING
-      Serial.print("new = "); Serial.print(knob_new_position);
-      Serial.print(", prev = "); Serial.print(knob_position);
+      Serial.print("* new pos = "); Serial.print(knob_new_position);
+      Serial.print(", prev pos = "); Serial.print(knob_position);
     #endif
     knob_position = knob_new_position;
     // set limists
@@ -149,9 +156,10 @@ void updateEncoderPosition(){
     }
 
     #ifdef SERIAL_DEBUGING
-      Serial.print("  |  knob position "); Serial.print(knob_position);
+      Serial.print("  |  knob pos: "); Serial.print(knob_position);
       Serial.print(" -> scaled by "); Serial.print(knob_scaling_factor);
-      Serial.print(" to "); Serial.println(knob_scaled);
+      Serial.print(" to "); Serial.print(knob_scaled);
+      Serial.print(" sent to motor "); Serial.println(selected_servo);
     #endif
 
     moveMotorToPosition(selected_servo, knob_scaled);
@@ -161,12 +169,31 @@ void updateEncoderPosition(){
   };
 }
 
-void servoOSCHandler(OSCMessage &msg, int addrOffset) {
+void servo1_OSCHandler(OSCMessage &msg, int addrOffset) {
   int inValue = msg.getFloat(0);
-
-  Serial.print("osc msg value: ");
-  Serial.println(inValue);
+  #ifdef SERIAL_DEBUGING
+    Serial.print("osc servo 1 update: ");
+    Serial.println(inValue);
+  #endif
   moveMotorToPosition(0, inValue);
+}
+
+void servo2_OSCHandler(OSCMessage &msg, int addrOffset) {
+  int inValue = msg.getFloat(0);
+  #ifdef SERIAL_DEBUGING
+    Serial.print("osc servo 2 update: ");
+    Serial.println(inValue);
+  #endif
+  moveMotorToPosition(1, inValue);
+}
+
+void servo3_OSCHandler(OSCMessage &msg, int addrOffset) {
+  int inValue = msg.getFloat(0);
+  #ifdef SERIAL_DEBUGING
+    Serial.print("osc servo 3 update: ");
+    Serial.println(inValue);
+  #endif
+  moveMotorToPosition(2, inValue);
 }
 
 void receiveOSC(){
@@ -184,7 +211,9 @@ void receiveOSC(){
 
     // route messages
     if(!msgIn.hasError()) {
-      msgIn.route("/servo", servoOSCHandler);
+      msgIn.route("/servo/1", servo1_OSCHandler);
+      msgIn.route("/servo/2", servo2_OSCHandler);
+      msgIn.route("/servo/3", servo3_OSCHandler);
     }
 
     //finish reading this packet:
@@ -257,14 +286,24 @@ void loop() {
     #endif
   }
 
-  updateEncoderPosition();
+  readEncoderPosition();
 
   unsigned long currentMillis = millis();
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
     #ifdef SERIAL_DEBUGING
-      Serial.println("sending osc");
+      // Serial.print("*");
     #endif
+
+    // #ifdef SERIAL_DEBUGING
+    //   Serial.print("servo position: ");
+    //   Serial.print(servo_position[0]);
+    //   Serial.print(" ");
+    //   Serial.print(servo_position[1]);
+    //   Serial.print(" ");
+    //   Serial.println(servo_position[2]);
+    // #endif
+
     //TODO sending blocks receiving
     uptime = (int)(millis()/1000);
     OSCMessage msg_uptime("/servo/uptime");
@@ -284,6 +323,17 @@ void loop() {
     msg_ver.send(Udp); // send the bytes to the SLIP stream
     Udp.endPacket(); // mark the end of the OSC Packet
     msg_ver.empty(); // free space occupied by message
+    //TODO add boundle send?
+    // restart UDP connection so we are ready to accept incoming ports
+    Udp.stop();
+    Udp.begin(inPort);
+
+    OSCMessage msg_pos("/servo/positon");
+    msg_pos.add(servo_position[0]);
+    Udp.beginPacket(targetIP, targetPort);
+    msg_pos.send(Udp); // send the bytes to the SLIP stream
+    Udp.endPacket(); // mark the end of the OSC Packet
+    msg_pos.empty(); // free space occupied by message
     //TODO add boundle send?
     // restart UDP connection so we are ready to accept incoming ports
     Udp.stop();
