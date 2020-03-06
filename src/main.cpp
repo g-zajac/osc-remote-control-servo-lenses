@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 104
+#define FIRMWARE_VERSION 105
 #define SERIAL_DEBUGING     // comment it out to disable serial debuging, for production i.e.
 #define SERIAL_SPEED 115200
 
@@ -83,12 +83,12 @@ IPAddress targetIP(10, 0, 10, 101);
 const unsigned int targetPort = 9999;
 const unsigned int inPort = 8888;
 
-uint8_t servo_1_position = 0;
-uint8_t servo_2_position = 0;
-uint8_t servo_3_position = 0;
+// uint8_t servo_1_position = 0;
+// uint8_t servo_2_position = 0;
+// uint8_t servo_3_position = 0;
 
-uint8_t servo_position[] = {servo_1_position, servo_2_position, servo_3_position};
-
+// uint8_t servo_position[] = {servo_1_position, servo_2_position, servo_3_position};
+uint8_t servo_position[] = {0, 0, 0};
 
 //------------------------------ Functions -------------------------------------
 
@@ -136,6 +136,8 @@ void readEncoderPosition(){
   knob_new_position = (knob.read() / 4);
 
   if (knob_new_position != knob_position){
+    // check current motor position
+    //
     #ifdef SERIAL_DEBUGING
       Serial.print("* new pos = "); Serial.print(knob_new_position);
       Serial.print(", prev pos = "); Serial.print(knob_position);
@@ -161,6 +163,7 @@ void readEncoderPosition(){
       Serial.print(" to "); Serial.print(knob_scaled);
       Serial.print(" sent to motor "); Serial.println(selected_servo);
     #endif
+
 
     moveMotorToPosition(selected_servo, knob_scaled);
 
@@ -225,6 +228,20 @@ void receiveOSC(){
   }
 }
 
+void checkKnobButton(){
+  debouncer.update();
+  if ( debouncer.rose()){
+    selected_servo ++;
+    if (selected_servo == 3) selected_servo = 0;
+
+    refresh_button_led(selected_servo);
+
+    #ifdef SERIAL_DEBUGING
+     Serial.print("button pressed, current servo: "); Serial.println(selected_servo);
+    #endif
+  }
+}
+
 // -----------------------------------------------------------------------------
 
 void setup() {
@@ -274,18 +291,8 @@ void setup() {
 
 void loop() {
 
-  debouncer.update();
-  if ( debouncer.rose()){
-    selected_servo ++;
-    if (selected_servo == 3) selected_servo = 0;
 
-    refresh_button_led(selected_servo);
-
-    #ifdef SERIAL_DEBUGING
-     Serial.print("button pressed, current servo: "); Serial.println(selected_servo);
-    #endif
-  }
-
+  checkKnobButton();
   readEncoderPosition();
 
   unsigned long currentMillis = millis();
