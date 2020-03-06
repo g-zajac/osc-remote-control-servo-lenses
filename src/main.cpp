@@ -242,6 +242,47 @@ void checkKnobButton(){
   }
 }
 
+void maintainEthernetConnection(){
+  switch (Ethernet.maintain())
+  {
+    case 1:
+      //renewed fail
+      #ifdef SERIAL_DEBUGING
+        Serial.println("Error: renewed fail");
+      #endif
+      break;
+
+    case 2:
+      //renewed success
+      #ifdef SERIAL_DEBUGING
+        Serial.println("Renewed success");
+        //print your local IP address:
+        printIPAddress();
+      #endif
+      break;
+
+    case 3:
+      //rebind fail
+      #ifdef SERIAL_DEBUGING
+        Serial.println("Error: rebind fail");
+      #endif
+      break;
+
+    case 4:
+      //rebind success
+      #ifdef SERIAL_DEBUGING
+        Serial.println("Rebind success");
+        //print your local IP address:
+        printIPAddress();
+      #endif
+      break;
+
+    default:
+    //nothing happened
+    break;
+   }
+}
+
 // -----------------------------------------------------------------------------
 
 void setup() {
@@ -291,10 +332,13 @@ void setup() {
 
 void loop() {
 
-
   checkKnobButton();
   readEncoderPosition();
+  maintainEthernetConnection();
 
+  //TODO only if connected
+  receiveOSC();
+  
   unsigned long currentMillis = millis();
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
@@ -346,46 +390,4 @@ void loop() {
     Udp.stop();
     Udp.begin(inPort);
   }
-
-
-  switch (Ethernet.maintain())
-  {
-    case 1:
-      //renewed fail
-      #ifdef SERIAL_DEBUGING
-        Serial.println("Error: renewed fail");
-      #endif
-      break;
-
-    case 2:
-      //renewed success
-      #ifdef SERIAL_DEBUGING
-        Serial.println("Renewed success");
-        //print your local IP address:
-        printIPAddress();
-      #endif
-      break;
-
-    case 3:
-      //rebind fail
-      #ifdef SERIAL_DEBUGING
-        Serial.println("Error: rebind fail");
-      #endif
-      break;
-
-    case 4:
-      //rebind success
-      #ifdef SERIAL_DEBUGING
-        Serial.println("Rebind success");
-        //print your local IP address:
-        printIPAddress();
-      #endif
-      break;
-
-    default:
-    //nothing happened
-    break;
-   }
-   //TODO only if connected
-   receiveOSC();
 }
