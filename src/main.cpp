@@ -24,6 +24,7 @@ period 10ms / 50Hz
 
 // Ethernet MAC address - must be unique on your network - MAC Reads T4A001 in hex (unique in your network)
 byte mac[] = { 0x54, 0x34, 0x41, 0x30, 0x30, 0x31 };
+IPAddress IP(10,0,10,132);
 
 void printIPAddress()
 {
@@ -63,6 +64,7 @@ void setup() {
   pwm.setPWMFreq(SERVO_FREQ);  // Analog servos run at ~50 Hz updates
   delay(10);
 
+/* DHCP
   // start the Ethernet connection:
   if (Ethernet.begin(mac) == 0) {
       Serial.println("Failed to configure Ethernet using DHCP");
@@ -71,6 +73,11 @@ void setup() {
     }
     // print your local IP address:
     printIPAddress();
+*/
+
+// Static
+  Ethernet.begin(mac, IP);
+  printIPAddress();
 
   // initialize digital pin LED_BUILTIN as an output.
   // pinMode(LED_BUILTIN, OUTPUT);
