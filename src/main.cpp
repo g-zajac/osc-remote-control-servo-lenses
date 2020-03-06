@@ -17,7 +17,7 @@ period 10ms / 50Hz
 */
 
 #define MIN_PULSE_WIDTH  550 // This is the rounded 'minimum' microsecond length based on the minimum pulse of 150
-#define MAX_PULSE_WIDTH  2540 // This is the rounded 'maximum' microsecond length based on the maximum pulse of 600
+#define MAX_PULSE_WIDTH  2600 // This is the rounded 'maximum' microsecond length based on the maximum pulse of 600
 #define SERVO_FREQ 50 // Analog servos run at ~50 Hz updates
 
 int angleToPulse(int angle){
@@ -28,11 +28,9 @@ int angleToPulse(int angle){
    return analog_value;
 }
 
-
 void moveMotorToPosition(uint8_t motor, int position_in_degrees){
   pwm.setPWM(motor, 0, angleToPulse(position_in_degrees));
 }
-
 
 
 void setup() {
@@ -50,7 +48,6 @@ void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
 }
-
 
 void loop() {
   Serial.println("set servo @ 0");
