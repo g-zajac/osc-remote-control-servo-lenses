@@ -1,7 +1,6 @@
-#define FIRMWARE_VERSION 103
+#define FIRMWARE_VERSION 104
 #define SERIAL_DEBUGING     // comment it out to disable serial debuging, for production i.e.
 #define SERIAL_SPEED 115200
-
 
 //-------- PIN MAPPING ---------------
 #define ENCODER_A 5
@@ -19,7 +18,6 @@ Teensy LC SDA 18, SCL 19
 //---------------------------------
 
 #include <Arduino.h>
-// #include <avr/pgmspace.h>
 
 #include <UIPEthernet.h> // Used for Ethernet
 
@@ -69,6 +67,7 @@ const uint8_t knob_scaling_factor = 12;  // number of encoder ticks per 0-180 se
 uint8_t knob_scaled;
 unsigned long previousMillis = 0;
 const long interval = 500;
+long uptime = 0;
 
 Bounce debouncer = Bounce(); // Instantiate a Bounce object
 uint8_t selected_servo = 0;
@@ -267,13 +266,25 @@ void loop() {
       Serial.println("sending osc");
     #endif
     //TODO sending blocks receiving
-    OSCMessage msg("/servo/uptime");
-    msg.add(1000);
+    uptime = (int)(millis()/1000);
+    OSCMessage msg_uptime("/servo/uptime");
+    msg_uptime.add(uptime);
     Udp.beginPacket(targetIP, targetPort);
-    msg.send(Udp); // send the bytes to the SLIP stream
+    msg_uptime.send(Udp); // send the bytes to the SLIP stream
     Udp.endPacket(); // mark the end of the OSC Packet
-    msg.empty(); // free space occupied by message
+    msg_uptime.empty(); // free space occupied by message
+    //TODO add boundle send?
+    // restart UDP connection so we are ready to accept incoming ports
+    Udp.stop();
+    Udp.begin(inPort);
 
+    OSCMessage msg_ver("/servo/ver");
+    msg_ver.add(FIRMWARE_VERSION);
+    Udp.beginPacket(targetIP, targetPort);
+    msg_ver.send(Udp); // send the bytes to the SLIP stream
+    Udp.endPacket(); // mark the end of the OSC Packet
+    msg_ver.empty(); // free space occupied by message
+    //TODO add boundle send?
     // restart UDP connection so we are ready to accept incoming ports
     Udp.stop();
     Udp.begin(inPort);
