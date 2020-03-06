@@ -39,6 +39,7 @@ void printIPAddress()
     Serial.print("DNS Server IP     : ");
     Serial.println(Ethernet.dnsServerIP());
     Serial.println();
+    Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
   }
 #endif
 
