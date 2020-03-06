@@ -53,11 +53,17 @@ Bounce debouncer = Bounce(); // Instantiate a Bounce object
 const uint8_t knobButtonPin = 4;
 uint8_t selected_servo = 0;
 
-#define RGB_LED_PIN_R 7
-#define RGB_LED_PIN_G 8
-#define RGB_LED_PIN_B 9
+// define RGB led pins     R G B
+uint8_t rgb_led_pins[] = {7, 8, 9};
 
 //------------------------------ Functions -------------------------------------
+
+void refresh_button_led(uint8_t active_servo){
+  for (uint8_t i = 0; i < 2; i++){
+    if (i == active_servo) digitalWrite(rgb_led_pins[i], LOW);
+    else digitalWrite(rgb_led_pins[i], HIGH);
+  }
+}
 
 #ifdef SERIAL_DEBUGING
 void printIPAddress()
@@ -135,14 +141,11 @@ void setup() {
     Serial.begin(SERIAL_SPEED);
   #endif
 
-  pinMode(RGB_LED_PIN_R, OUTPUT);
-  pinMode(RGB_LED_PIN_G, OUTPUT);
-  pinMode(RGB_LED_PIN_B, OUTPUT);
-
-  // test
-  // digitalWrite(RGB_LED_PIN_R, LOW);
-  // digitalWrite(RGB_LED_PIN_G, LOW);
-  // digitalWrite(RGB_LED_PIN_B, LOW);
+  //set RGB led off
+  for (uint8_t i = 0; i < 2; i++){
+    pinMode(rgb_led_pins[i], OUTPUT);
+    digitalWrite(rgb_led_pins[i], HIGH);
+  }
 
   // pinMode(knobButtonPin, INPUT);
   // digitalWrite(knobButtonPin, LOW);  // internal pulldown, button connected to +3V3
@@ -183,6 +186,9 @@ void loop() {
   if ( debouncer.rose()){
     selected_servo ++;
     if (selected_servo == 3) selected_servo = 0;
+
+    refresh_button_led(selected_servo);
+
     #ifdef SERIAL_DEBUGING
      Serial.print("button pressed, current servo: "); Serial.println(selected_servo);
     #endif
