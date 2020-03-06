@@ -9,27 +9,31 @@
 // default address 0x40, default board setting
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
-#define SERVOMIN  150 // This is the 'minimum' pulse length count (out of 4096)
-#define SERVOMAX  600 // This is the 'maximum' pulse length count (out of 4096)
-#define USMIN  600 // This is the rounded 'minimum' microsecond length based on the minimum pulse of 150
-#define USMAX  2400 // This is the rounded 'maximum' microsecond length based on the maximum pulse of 600
+/*
+MG996R
+dead band: 0.050ms
+period 10ms / 50Hz
+1ms - 2ms
+*/
+
+#define MIN_PULSE_WIDTH  550 // This is the rounded 'minimum' microsecond length based on the minimum pulse of 150
+#define MAX_PULSE_WIDTH  2540 // This is the rounded 'maximum' microsecond length based on the maximum pulse of 600
 #define SERVO_FREQ 50 // Analog servos run at ~50 Hz updates
 
-uint8_t servonum = 0;
-
-void setServoPulse(uint8_t n, double pulse) {
-  double pulselength;
-
-  pulselength = 1000000;   // 1,000,000 us per second
-  pulselength /= SERVO_FREQ;   // Analog servos run at ~60 Hz updates
-  Serial.print(pulselength); Serial.println(" us per period");
-  pulselength /= 4096;  // 12 bits of resolution
-  Serial.print(pulselength); Serial.println(" us per bit");
-  pulse *= 1000000;  // convert input seconds to us
-  pulse /= pulselength;
-  Serial.println(pulse);
-  pwm.setPWM(n, 0, pulse);
+int angleToPulse(int angle){
+   int pulse_wide = map(angle, 0, 180, MIN_PULSE_WIDTH,MAX_PULSE_WIDTH);   // map angle of 0 to 180 to Servo min and Servo max
+   int analog_value = int(float(pulse_wide) / 1000000 * SERVO_FREQ * 4096);
+   Serial.print("Angle: "); Serial.print(angle);
+   Serial.print(" pulse: "); Serial.println(analog_value);
+   return analog_value;
 }
+
+
+void moveMotorToPosition(uint8_t motor, int position_in_degrees){
+  pwm.setPWM(motor, 0, angleToPulse(position_in_degrees));
+}
+
+
 
 void setup() {
   #ifdef SERIAL_DEBUGING
@@ -38,7 +42,7 @@ void setup() {
 
   //initialize servo board
   pwm.begin();
-  pwm.setOscillatorFrequency(27000000);
+  // pwm.setOscillatorFrequency(27000000);
   pwm.setPWMFreq(SERVO_FREQ);  // Analog servos run at ~50 Hz updates
   delay(10);
 
@@ -49,15 +53,15 @@ void setup() {
 
 
 void loop() {
-  Serial.println(servonum);
-    for (uint16_t pulselen = SERVOMIN; pulselen < SERVOMAX; pulselen++) {
-      pwm.setPWM(servonum, 0, pulselen);
-    }
+  Serial.println("set servo @ 0");
+  moveMotorToPosition(0, 0);
+  moveMotorToPosition(1, 0);
+  moveMotorToPosition(2, 0);
+  delay(5000);
 
-    delay(3000);
-    for (uint16_t pulselen = SERVOMAX; pulselen > SERVOMIN; pulselen--) {
-      pwm.setPWM(servonum, 0, pulselen);
-    }
-    delay(3000);
-
+  Serial.println("set servo @ 180");
+  moveMotorToPosition(0, 180);
+  moveMotorToPosition(1, 180);
+  moveMotorToPosition(2, 180);
+  delay(10000);
 }
