@@ -1,32 +1,54 @@
-// #define DEBUG_HARD_SERIAL
+#define FIRMWARE_VERSION 106
+#define SERIAL_DEBUGING     // comment it out to disable serial debuging, for production i.e.
+#define SERIAL_SPEED 115200
+
+//-------- PIN MAPPING ---------------
+#define ENCODER_A 5
+#define ENCODER_B 6
+#define KNOB_BUTTON_PIN 4
+
+#define ENCODER_LED_R 7
+#define ENCODER_LED_G 8
+#define ENCODER_LED_B 9
+
+/*
+I2C
+Teensy LC SDA 18, SCL 19
+*/
+//---------------------------------
 
 #include <Arduino.h>
-#include <UIPEthernet.h>
-#include <OSCMessage.h>
+
+#include <UIPEthernet.h> // Used for Ethernet
+
 #include <OSCBundle.h>
-#include <Servo.h>
+#include <OSCMessage.h>
+
+// PCA9685 16-channel PWM servo driver
+#include <Wire.h>
+#include <Adafruit_PWMServoDriver.h>
+
 #include <Encoder.h>
-// #include <Adafruit_NeoPixel.h>
+#include <Bounce2.h>
 
-// Networking / UDP Setup
-EthernetUDP Udp;
+// default address 0x40, default board setting
+Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
-// destination address, Isadora machine, set last octet to 255 for broadcat - send to all
-IPAddress targetIP(10, 0, 10, 101);
-const unsigned int targetPort = 9999;
-const unsigned int inPort = 8888;
+/*
+MG996R
+dead band: 0.050ms
+period 10ms / 50Hz
+1ms - 2ms
+*/
 
-// NOTE change in production with multiple units
+#define MIN_PULSE_WIDTH  550 // This is the rounded 'minimum' microsecond length based on the minimum pulse of 150
+#define MAX_PULSE_WIDTH  2600 // This is the rounded 'maximum' microsecond length based on the maximum pulse of 600
+#define SERVO_FREQ 50 // Analog servos run at ~50 Hz updates
+
+
+// Ethernet MAC address - must be unique on your network - MAC Reads T4A001 in hex (unique in your network)
 byte mac[] = { 0x54, 0x34, 0x41, 0x30, 0x30, 0x31 };
-
-// refresh, update timing to send osc ping, position msg
-unsigned long previousMillis = 0;
-const long interval = 1000;
-
-const int servoPin = 2;
-// Create a servo object
-Servo Servo1;
-// TODO add global var servo_position
+IPAddress IP(10,0,10,132);
 
 /*
 Rotary encoder wireing
@@ -37,239 +59,310 @@ Rotary encoder wireing
                           7 -
                           8 - Common GND -  (6)[GND]
 */
-Encoder knob(6, 5);
-int knob_position  = 0;
+Encoder knob(ENCODER_A, ENCODER_B);
+int knob_position  = -999;
+//******************************************************************************
+const uint8_t knob_scaling_factor = 12;  // number of encoder ticks per 0-180 servo movment
+//******************************************************************************
+uint8_t knob_scaled;
+unsigned long previousMillis = 0;
+const long interval = 500;
+long uptime = 0;
 
-// #define NEOPIXEL_PIN 11
-// #define NUMPIXELS 1
+Bounce debouncer = Bounce(); // Instantiate a Bounce object
+uint8_t selected_servo = 0;
 
-// #include <Adafruit_NeoPixel.h>
-// #ifdef __AVR__
-//   #include <avr/power.h>
-// #endif
+// define RGB led pins     R G B
+const uint8_t rgb_led_pins[] = {ENCODER_LED_R, ENCODER_LED_G, ENCODER_LED_B};
 
-// Adafruit_NeoPixel pixels(NUMPIXELS, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
+// Networking / UDP Setup
+EthernetUDP Udp;
 
-// # define LED_PIN 13
-//NOTE colison with ethernet?
+// destination address
+IPAddress targetIP(10, 0, 10, 101);
+const unsigned int targetPort = 9999;
+const unsigned int inPort = 8888;
 
-// void printIPAddress()
-// {
-//   #ifdef DEBUG_HARD_SERIAL
-//   Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
-//   Serial.print("IP Address        : ");
-//   Serial.println(Ethernet.localIP());
-//   Serial.print("Subnet Mask       : ");
-//   Serial.println(Ethernet.subnetMask());
-//   Serial.print("Default Gateway IP: ");
-//   Serial.println(Ethernet.gatewayIP());
-//   Serial.print("DNS Server IP     : ");
-//   Serial.println(Ethernet.dnsServerIP());
-//   Serial.println();
-//   #endif
-// }
+// array of servos position: {servo1, servo2, servo3}
+uint8_t servo_position[] = {0, 0, 0};
 
-void servoOSCHandler(OSCMessage &msg, int addrOffset) {
-  int inValue = msg.getFloat(0);
-  #ifdef DEBUG_HARD_SERIAL
-    Serial.print("osc msg value: ");
-    Serial.println(inValue);
-  #endif
-  Servo1.write(inValue);
-    // NOTE send OSC feedback with new position?
+//------------------------------ Functions -------------------------------------
 
+void refresh_button_led(uint8_t active_servo){
+  for (uint8_t i = 0; i < 2; i++){
+    if (i == active_servo) digitalWrite(rgb_led_pins[i], LOW);
+    else digitalWrite(rgb_led_pins[i], HIGH);
+  }
 }
 
-// the setup function runs once when you press reset or power the board
+#ifdef SERIAL_DEBUGING
+void printIPAddress()
+  {
+    Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
+    Serial.print("IP Address        : ");
+    Serial.println(Ethernet.localIP());
+    Serial.print("Subnet Mask       : ");
+    Serial.println(Ethernet.subnetMask());
+    Serial.print("Default Gateway IP: ");
+    Serial.println(Ethernet.gatewayIP());
+    Serial.print("DNS Server IP     : ");
+    Serial.println(Ethernet.dnsServerIP());
+    Serial.println();
+    Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
+  }
+#endif
+
+int angleToPulse(int angle){
+  int pulse_wide = map(angle, 0, 180, MIN_PULSE_WIDTH,MAX_PULSE_WIDTH);   // map angle of 0 to 180 to Servo min and Servo max
+  int analog_value = int(float(pulse_wide) / 1000000 * SERVO_FREQ * 4096);
+  // #ifdef SERIAL_DEBUGING
+  //   Serial.print("Angle: "); Serial.print(angle);
+  //   Serial.print(" pulse: "); Serial.println(analog_value);
+  // #endif
+  return analog_value;
+}
+
+void moveMotorToPosition(uint8_t motor, int position_in_degrees){
+  pwm.setPWM(motor, 0, angleToPulse(position_in_degrees));
+  servo_position[motor] = position_in_degrees;
+}
+
+void readEncoderPosition(){
+
+  long knob_new_position;
+  knob_new_position = (knob.read() / 4);
+
+  if (knob_new_position != knob_position){
+    // check current motor position
+    //
+    #ifdef SERIAL_DEBUGING
+      Serial.print("* new pos = "); Serial.print(knob_new_position);
+      Serial.print(", prev pos = "); Serial.print(knob_position);
+    #endif
+    knob_position = knob_new_position;
+    // set limists
+    if (knob_position < 0) {
+      knob_position = 0;
+      knob.write(0);
+    }
+
+    // encoder has 24 jumps / rotation
+    knob_scaled = map(knob_position, 0, knob_scaling_factor, 0, 180);
+
+    if (knob_scaled > 180){
+      knob_position = knob_scaling_factor;
+      knob.write(knob_scaling_factor * 4);
+    }
+
+    #ifdef SERIAL_DEBUGING
+      Serial.print("  |  knob pos: "); Serial.print(knob_position);
+      Serial.print(" -> scaled by "); Serial.print(knob_scaling_factor);
+      Serial.print(" to "); Serial.print(knob_scaled);
+      Serial.print(" sent to motor "); Serial.println(selected_servo);
+    #endif
+
+    moveMotorToPosition(selected_servo, knob_scaled);
+
+    //TODO sync position with current OSC position value
+    //TODO add manual OSC flag
+  };
+}
+
+void servo1_OSCHandler(OSCMessage &msg, int addrOffset) {
+  int inValue = msg.getFloat(0);
+  #ifdef SERIAL_DEBUGING
+    Serial.print("osc servo 1 update: ");
+    Serial.println(inValue);
+  #endif
+  moveMotorToPosition(0, inValue);
+}
+
+void servo2_OSCHandler(OSCMessage &msg, int addrOffset) {
+  int inValue = msg.getFloat(0);
+  #ifdef SERIAL_DEBUGING
+    Serial.print("osc servo 2 update: ");
+    Serial.println(inValue);
+  #endif
+  moveMotorToPosition(1, inValue);
+}
+
+void servo3_OSCHandler(OSCMessage &msg, int addrOffset) {
+  int inValue = msg.getFloat(0);
+  #ifdef SERIAL_DEBUGING
+    Serial.print("osc servo 3 update: ");
+    Serial.println(inValue);
+  #endif
+  moveMotorToPosition(2, inValue);
+}
+
+void receiveOSCsingle(){
+  // read incoming udp packets
+  OSCMessage msgIn;
+  int size;
+  int success;
+
+  if( (size = Udp.parsePacket())>0)
+  {
+
+    //while((size = Udp.available()) > 0)
+    while(size--)
+      msgIn.fill(Udp.read());
+
+    // route messages
+    if(!msgIn.hasError()) {
+      msgIn.route("/servo/1", servo1_OSCHandler);
+      msgIn.route("/servo/2", servo2_OSCHandler);
+      msgIn.route("/servo/3", servo3_OSCHandler);
+    }
+
+    //finish reading this packet:
+    Udp.flush();
+    //restart UDP connection to receive packets from other clients
+    Udp.stop();
+    success = Udp.begin(inPort);
+  }
+}
+
+void checkKnobButton(){
+  debouncer.update();
+  if ( debouncer.rose()){
+    selected_servo ++;
+    if (selected_servo == 3) selected_servo = 0;
+
+    refresh_button_led(selected_servo);
+
+    #ifdef SERIAL_DEBUGING
+     Serial.print("button pressed, current servo: "); Serial.println(selected_servo);
+    #endif
+  }
+}
+
+void maintainEthernetConnection(){
+  switch (Ethernet.maintain())
+  {
+    case 1:
+      //renewed fail
+      #ifdef SERIAL_DEBUGING
+        Serial.println("Error: renewed fail");
+      #endif
+      break;
+
+    case 2:
+      //renewed success
+      #ifdef SERIAL_DEBUGING
+        Serial.println("Renewed success");
+        //print your local IP address:
+        printIPAddress();
+      #endif
+      break;
+
+    case 3:
+      //rebind fail
+      #ifdef SERIAL_DEBUGING
+        Serial.println("Error: rebind fail");
+      #endif
+      break;
+
+    case 4:
+      //rebind success
+      #ifdef SERIAL_DEBUGING
+        Serial.println("Rebind success");
+        //print your local IP address:
+        printIPAddress();
+      #endif
+      break;
+
+    default:
+    //nothing happened
+    break;
+   }
+}
+
+void sendOSCbundle(){
+  OSCBundle bndl;
+  bndl.add("/device1/ver").add(FIRMWARE_VERSION);
+  uptime = (int)(millis()/1000);
+  bndl.add("/device1/uptime").add(uptime);
+
+  bndl.add("/device1/servo1/position").add(servo_position[0]);
+  bndl.add("/device1/servo2/position").add(servo_position[1]);
+  bndl.add("/device1/servo3/position").add(servo_position[2]);
+
+  Udp.beginPacket(targetIP, targetPort);
+  bndl.send(Udp); // send the bytes to the SLIP stream
+  Udp.endPacket(); // mark the end of the OSC Packet
+  bndl.empty(); // empty the bundle to free room for a new one
+
+  //finish reading this packet:
+  Udp.flush();
+
+  //restart UDP connection to receive packets from other clients
+  Udp.stop();
+  Udp.begin(inPort);
+}
+
+// -----------------------------------------------------------------------------
+
 void setup() {
-  #ifdef DEBUG_HARD_SERIAL
-    Serial.begin(9600);
+  #ifdef SERIAL_DEBUGING
+    Serial.begin(SERIAL_SPEED);
   #endif
 
-  // #if defined(__AVR_ATtiny85__) && (F_CPU == 16000000)
-  //   clock_prescale_set(clock_div_1);
-  // #endif
+  //set RGB led off
+  for (uint8_t i = 0; i < 2; i++){
+    pinMode(rgb_led_pins[i], OUTPUT);
+    digitalWrite(rgb_led_pins[i], HIGH);
+  }
 
-  // pixels.begin();
-  // pixels.clear();
+  refresh_button_led(selected_servo);
 
-  // initialize digital pin LED_PIN as an output.
-  // pinMode(LED_PIN, OUTPUT);
-  // digitalWrite(LED_PIN, HIGH);
-  // delay(1000);
-  // digitalWrite(LED_PIN, LOW);
-  // delay(1000);
-  // digitalWrite(LED_PIN, HIGH);
+  // add pull down resistor 10k
+  pinMode(KNOB_BUTTON_PIN, INPUT);
+  debouncer.attach(KNOB_BUTTON_PIN); // Attach the debouncer to a pin with pull down, switch connected to +3V3
+  debouncer.interval(10); // Use a debounce interval of 25 milliseconds
 
-  // pixels.setPixelColor(0, pixels.Color(50, 0, 0));
-  // pixels.show();
+  //initialize servo board
+  pwm.begin();
+  // pwm.setOscillatorFrequency(27000000);
+  pwm.setPWMFreq(SERVO_FREQ);  // Analog servos run at ~50 Hz updates
+  delay(10);
 
-  Servo1.attach(servoPin);
-
+// /* DHCP
   // start the Ethernet connection:
   if (Ethernet.begin(mac) == 0) {
-    #ifdef DEBUG_HARD_SERIAL
       Serial.println("Failed to configure Ethernet using DHCP");
-    #endif
-    // no point in carrying on, so do nothing forevermore:
-    for (;;);
+      // no point in carrying on, so do nothing forevermore:
+      for (;;);
     }
     // print your local IP address:
-    // printIPAddress();
-    #ifdef DEBUG_HARD_SERIAL
-      Serial.println("Connected");
-    #endif
+    printIPAddress();
+// */
 
-    Udp.begin(inPort);
+// Static
+  // Ethernet.begin(mac, IP);
+  // #ifdef SERIAL_DEBUGING
+  //   printIPAddress();
+  // #endif
 
-    // pixels.setPixelColor(0, pixels.Color(0, 0, 30));
-    // pixels.show();
+  //TODO add check connected status if
+  Udp.begin(inPort);
 }
 
 
 void loop() {
 
-  // ethernet
-  switch (Ethernet.maintain())
-   {
-     case 1:
-       //renewed fail
-       #ifdef DEBUG_HARD_SERIAL
-        Serial.println("Error: renewed fail");
-      #endif
-      // digitalWrite(LED_PIN, LOW);
-      // pixels.setPixelColor(0, pixels.Color(50, 0, 0));
-      // pixels.show();
-      break;
+  checkKnobButton();
+  readEncoderPosition();
 
-     case 2:
-      //renewed success
-      #ifdef DEBUG_HARD_SERIAL
-        Serial.println("Renewed success");
-      #endif
-      // digitalWrite(LED_PIN, HIGH);
-      // pixels.setPixelColor(0, pixels.Color(0, 0, 30));
-      // pixels.show();
-      //print your local IP address:
-      // printIPAddress();
-      break;
+  maintainEthernetConnection();
 
-     case 3:
-      //rebind fail
-      #ifdef DEBUG_HARD_SERIAL
-        Serial.println("Error: rebind fail");
-      #endif
-      // digitalWrite(LED_PIN, LOW);
-      // pixels.setPixelColor(0, pixels.Color(50, 0, 0));
-      // pixels.show();
-      break;
+  // TODO only if connected
+  receiveOSCsingle();
 
-     case 4:
-      //rebind success
-      #ifdef DEBUG_HARD_SERIAL
-        Serial.println("Rebind success");
-      #endif
-      // digitalWrite(LED_PIN, HIGH);
-      // pixels.setPixelColor(0, pixels.Color(0, 0, 30));
-      // pixels.show();
-      //print your local IP address:
-      // printIPAddress();
-      break;
-
-     default:
-       //nothing happened
-       break;
-
-   }
-
-   // OSC
-   // read incoming udp packets
-   OSCMessage msgIn;
-   int size;
-   int success;
-
-   if( (size = Udp.parsePacket())>0)
-   {
-
-     //while((size = Udp.available()) > 0)
-     while(size--)
-       msgIn.fill(Udp.read());
-
-     // route messages
-     if(!msgIn.hasError()) {
-       msgIn.route("/servo", servoOSCHandler);
-     }
-
-     //finish reading this packet:
-     Udp.flush();
-
-     //restart UDP connection to receive packets from other clients
-     Udp.stop();
-     success = Udp.begin(inPort);
-
-     // pixels.setPixelColor(0, pixels.Color(0, 0, 30));
-     // pixels.show();
-   }
-
-
-
-   unsigned long currentMillis = millis();
-   if (currentMillis - previousMillis >= interval) {
+  unsigned long currentMillis = millis();
+  if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
-
-    // pixels.setPixelColor(0, pixels.Color(0, 50, 0));
-    // pixels.show();
-
-    int uptime = (int)(millis()/1000);
-
-    #ifdef DEBUG_HARD_SERIAL
-      Serial.print("encoder position: "); Serial.println(knob_position / 4);
-      Serial.print("sending uptime osc: "); Serial.println(uptime);
-    #endif
-    //TODO sending blocks receiving
-    OSCMessage msgPing("/servo/uptime");
-    msgPing.add(uptime);
-    Udp.beginPacket(targetIP, targetPort);
-    msgPing.send(Udp); // send the bytes to the SLIP stream
-    Udp.endPacket(); // mark the end of the OSC Packet
-    msgPing.empty(); // free space occupied by message
-
-    #ifdef DEBUG_HARD_SERIAL
-      Serial.print("sending servo position osc: "); Serial.println(Servo1.read());
-    #endif
-
-    OSCMessage msgPos("/servo/position");
-    msgPos.add(Servo1.read());
-    Udp.beginPacket(targetIP, targetPort);
-    msgPos.send(Udp); // send the bytes to the SLIP stream
-    Udp.endPacket(); // mark the end of the OSC Packet
-    msgPos.empty(); // free space occupied by message
-
-    // restart UDP connection so we are ready to accept incoming ports
-    Udp.stop();
-    Udp.begin(inPort);
-
-    // pixels.setPixelColor(0, pixels.Color(0, 0, 30));
-    // pixels.show();
+    sendOSCbundle();
   }
-
-  // Encoder
-  // counting the rise/fall from each pin, of which there are four in each notch of the encoder.
-  // jumps by 4
-  long knob_new_position;
-  knob_new_position = knob.read();
-  if (knob_new_position != knob_position){
-    knob_position = knob_new_position;
-    // set limists
-    if (knob_position < 0) knob_position = 0;
-    if (knob_position > 4*180) knob_position = 4*180;
-
-    // update servo position
-    //TODO sync position with current OSC position value
-    Servo1.write(knob_position);
-    //TODO add manual OSC flag
-    // pixels.setPixelColor(0, pixels.Color(0, 0, 100));
-    // pixels.show();
-  };
 
 }
