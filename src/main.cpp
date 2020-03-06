@@ -22,7 +22,7 @@ Teensy LC SDA 18, SCL 19
 #include <UIPEthernet.h> // Used for Ethernet
 
 #include <OSCMessage.h>
-// #include <OSCBundle.h>
+#include <OSCBundle.h>
 
 // PCA9685 16-channel PWM servo driver
 #include <Wire.h>
@@ -280,6 +280,22 @@ void maintainEthernetConnection(){
    }
 }
 
+void sendOSCbundle(){
+  OSCBundle bndl;
+  bndl.add("/device1/ver").add(FIRMWARE_VERSION);
+  uptime = (int)(millis()/1000);
+  bndl.add("/device1/uptime").add(uptime);
+
+  bndl.add("/device1/servo1/position").add(servo_position[0]);
+  bndl.add("/device1/servo2/position").add(servo_position[1]);
+  bndl.add("/device1/servo3/position").add(servo_position[2]);
+
+  Udp.beginPacket(targetIP, targetPort);
+  bndl.send(Udp); // send the bytes to the SLIP stream
+  Udp.endPacket(); // mark the end of the OSC Packet
+  bndl.empty(); // empty the bundle to free room for a new one
+}
+
 // -----------------------------------------------------------------------------
 
 void setup() {
@@ -327,6 +343,7 @@ void setup() {
   Udp.begin(inPort);
 }
 
+
 void loop() {
 
   checkKnobButton();
@@ -339,52 +356,6 @@ void loop() {
   unsigned long currentMillis = millis();
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
-    #ifdef SERIAL_DEBUGING
-      // Serial.print("*");
-    #endif
-
-    // #ifdef SERIAL_DEBUGING
-    //   Serial.print("servo position: ");
-    //   Serial.print(servo_position[0]);
-    //   Serial.print(" ");
-    //   Serial.print(servo_position[1]);
-    //   Serial.print(" ");
-    //   Serial.println(servo_position[2]);
-    // #endif
-
-    //TODO sending blocks receiving
-    uptime = (int)(millis()/1000);
-    OSCMessage msg_uptime("/servo/uptime");
-    msg_uptime.add(uptime);
-    Udp.beginPacket(targetIP, targetPort);
-    msg_uptime.send(Udp); // send the bytes to the SLIP stream
-    Udp.endPacket(); // mark the end of the OSC Packet
-    msg_uptime.empty(); // free space occupied by message
-    //TODO add boundle send?
-    // restart UDP connection so we are ready to accept incoming ports
-    Udp.stop();
-    Udp.begin(inPort);
-
-    OSCMessage msg_ver("/servo/ver");
-    msg_ver.add(FIRMWARE_VERSION);
-    Udp.beginPacket(targetIP, targetPort);
-    msg_ver.send(Udp); // send the bytes to the SLIP stream
-    Udp.endPacket(); // mark the end of the OSC Packet
-    msg_ver.empty(); // free space occupied by message
-    //TODO add boundle send?
-    // restart UDP connection so we are ready to accept incoming ports
-    Udp.stop();
-    Udp.begin(inPort);
-
-    OSCMessage msg_pos("/servo/positon");
-    msg_pos.add(servo_position[0]);
-    Udp.beginPacket(targetIP, targetPort);
-    msg_pos.send(Udp); // send the bytes to the SLIP stream
-    Udp.endPacket(); // mark the end of the OSC Packet
-    msg_pos.empty(); // free space occupied by message
-    //TODO add boundle send?
-    // restart UDP connection so we are ready to accept incoming ports
-    Udp.stop();
-    Udp.begin(inPort);
+    sendOSCbundle();
   }
 }
