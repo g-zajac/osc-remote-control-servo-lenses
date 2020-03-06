@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 105
+#define FIRMWARE_VERSION 106
 #define SERIAL_DEBUGING     // comment it out to disable serial debuging, for production i.e.
 #define SERIAL_SPEED 115200
 
@@ -21,8 +21,8 @@ Teensy LC SDA 18, SCL 19
 
 #include <UIPEthernet.h> // Used for Ethernet
 
-#include <OSCMessage.h>
 #include <OSCBundle.h>
+#include <OSCMessage.h>
 
 // PCA9685 16-channel PWM servo driver
 #include <Wire.h>
@@ -161,7 +161,6 @@ void readEncoderPosition(){
       Serial.print(" sent to motor "); Serial.println(selected_servo);
     #endif
 
-
     moveMotorToPosition(selected_servo, knob_scaled);
 
     //TODO sync position with current OSC position value
@@ -196,7 +195,7 @@ void servo3_OSCHandler(OSCMessage &msg, int addrOffset) {
   moveMotorToPosition(2, inValue);
 }
 
-void receiveOSC(){
+void receiveOSCsingle(){
   // read incoming udp packets
   OSCMessage msgIn;
   int size;
@@ -218,7 +217,6 @@ void receiveOSC(){
 
     //finish reading this packet:
     Udp.flush();
-
     //restart UDP connection to receive packets from other clients
     Udp.stop();
     success = Udp.begin(inPort);
@@ -294,6 +292,13 @@ void sendOSCbundle(){
   bndl.send(Udp); // send the bytes to the SLIP stream
   Udp.endPacket(); // mark the end of the OSC Packet
   bndl.empty(); // empty the bundle to free room for a new one
+
+  //finish reading this packet:
+  Udp.flush();
+
+  //restart UDP connection to receive packets from other clients
+  Udp.stop();
+  Udp.begin(inPort);
 }
 
 // -----------------------------------------------------------------------------
@@ -348,14 +353,16 @@ void loop() {
 
   checkKnobButton();
   readEncoderPosition();
+
   maintainEthernetConnection();
 
-  //TODO only if connected
-  receiveOSC();
+  // TODO only if connected
+  receiveOSCsingle();
 
   unsigned long currentMillis = millis();
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
     sendOSCbundle();
   }
+
 }
