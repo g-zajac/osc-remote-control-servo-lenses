@@ -26,26 +26,30 @@ period 10ms / 50Hz
 byte mac[] = { 0x54, 0x34, 0x41, 0x30, 0x30, 0x31 };
 IPAddress IP(10,0,10,132);
 
+#ifdef SERIAL_DEBUGING
 void printIPAddress()
-{
-  Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
-  Serial.print("IP Address        : ");
-  Serial.println(Ethernet.localIP());
-  Serial.print("Subnet Mask       : ");
-  Serial.println(Ethernet.subnetMask());
-  Serial.print("Default Gateway IP: ");
-  Serial.println(Ethernet.gatewayIP());
-  Serial.print("DNS Server IP     : ");
-  Serial.println(Ethernet.dnsServerIP());
-  Serial.println();
-}
+  {
+    Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
+    Serial.print("IP Address        : ");
+    Serial.println(Ethernet.localIP());
+    Serial.print("Subnet Mask       : ");
+    Serial.println(Ethernet.subnetMask());
+    Serial.print("Default Gateway IP: ");
+    Serial.println(Ethernet.gatewayIP());
+    Serial.print("DNS Server IP     : ");
+    Serial.println(Ethernet.dnsServerIP());
+    Serial.println();
+  }
+#endif
 
 int angleToPulse(int angle){
-   int pulse_wide = map(angle, 0, 180, MIN_PULSE_WIDTH,MAX_PULSE_WIDTH);   // map angle of 0 to 180 to Servo min and Servo max
-   int analog_value = int(float(pulse_wide) / 1000000 * SERVO_FREQ * 4096);
-   Serial.print("Angle: "); Serial.print(angle);
-   Serial.print(" pulse: "); Serial.println(analog_value);
-   return analog_value;
+  int pulse_wide = map(angle, 0, 180, MIN_PULSE_WIDTH,MAX_PULSE_WIDTH);   // map angle of 0 to 180 to Servo min and Servo max
+  int analog_value = int(float(pulse_wide) / 1000000 * SERVO_FREQ * 4096);
+  #ifdef SERIAL_DEBUGING
+    Serial.print("Angle: "); Serial.print(angle);
+    Serial.print(" pulse: "); Serial.println(analog_value);
+  #endif
+  return analog_value;
 }
 
 void moveMotorToPosition(uint8_t motor, int position_in_degrees){
@@ -77,7 +81,9 @@ void setup() {
 
 // Static
   Ethernet.begin(mac, IP);
-  printIPAddress();
+  #ifdef SERIAL_DEBUGING
+    printIPAddress();
+  #endif
 
   // initialize digital pin LED_BUILTIN as an output.
   // pinMode(LED_BUILTIN, OUTPUT);
@@ -87,36 +93,42 @@ void setup() {
 void loop() {
 
   switch (Ethernet.maintain())
-   {
-     case 1:
-       //renewed fail
-       Serial.println("Error: renewed fail");
-       break;
+  {
+    case 1:
+      //renewed fail
+      #ifdef SERIAL_DEBUGING
+        Serial.println("Error: renewed fail");
+      #endif
+      break;
 
-     case 2:
-       //renewed success
-       Serial.println("Renewed success");
+    case 2:
+      //renewed success
+      #ifdef SERIAL_DEBUGING
+        Serial.println("Renewed success");
+        //print your local IP address:
+        printIPAddress();
+      #endif
+      break;
 
-       //print your local IP address:
-       printIPAddress();
-       break;
+    case 3:
+      //rebind fail
+      #ifdef SERIAL_DEBUGING
+        Serial.println("Error: rebind fail");
+      #endif
+      break;
 
-     case 3:
-       //rebind fail
-       Serial.println("Error: rebind fail");
-       break;
+    case 4:
+      //rebind success
+      #ifdef SERIAL_DEBUGING
+        Serial.println("Rebind success");
+        //print your local IP address:
+        printIPAddress();
+      #endif
+      break;
 
-     case 4:
-       //rebind success
-       Serial.println("Rebind success");
-
-       //print your local IP address:
-       printIPAddress();
-       break;
-
-     default:
-       //nothing happened
-       break;
+    default:
+    //nothing happened
+    break;
 
    }
 
