@@ -1,6 +1,22 @@
 #define FIRMWARE_VERSION 103
-// #define SERIAL_DEBUGING     // comment it out to disable serial debuging, for production i.e.
+#define SERIAL_DEBUGING     // comment it out to disable serial debuging, for production i.e.
 #define SERIAL_SPEED 115200
+
+
+//-------- PIN MAPPING ---------------
+#define ENCODER_A 5
+#define ENCODER_B 6
+#define KNOB_BUTTON_PIN 4
+
+#define ENCODER_LED_R 7
+#define ENCODER_LED_G 8
+#define ENCODER_LED_B 9
+
+/*
+I2C
+Teensy LC SDA 18, SCL 19
+*/
+//---------------------------------
 
 #include <Arduino.h>
 // #include <avr/pgmspace.h>
@@ -45,7 +61,7 @@ Rotary encoder wireing
                           7 -
                           8 - Common GND -  (6)[GND]
 */
-Encoder knob(5, 6);
+Encoder knob(ENCODER_A, ENCODER_B);
 int knob_position  = -999;
 //******************************************************************************
 const uint8_t knob_scaling_factor PROGMEM = 12;  // number of encoder ticks per 0-180 servo movment
@@ -56,12 +72,11 @@ const long interval = 3*1000;
 
 Bounce debouncer = Bounce(); // Instantiate a Bounce object
 
-#define KNOB_BUTTON_PIN 4
 
 uint8_t selected_servo = 0;
 
 // define RGB led pins     R G B
-const uint8_t rgb_led_pins[] PROGMEM = {7, 8, 9};
+const uint8_t rgb_led_pins[] PROGMEM = {ENCODER_LED_R, ENCODER_LED_G, ENCODER_LED_B};
 
 // Networking / UDP Setup
 EthernetUDP Udp;
@@ -80,22 +95,22 @@ void refresh_button_led(uint8_t active_servo){
   }
 }
 
-// #ifdef SERIAL_DEBUGING
-// void printIPAddress()
-//   {
-//     Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
-//     Serial.print("IP Address        : ");
-//     Serial.println(Ethernet.localIP());
-//     Serial.print("Subnet Mask       : ");
-//     Serial.println(Ethernet.subnetMask());
-//     Serial.print("Default Gateway IP: ");
-//     Serial.println(Ethernet.gatewayIP());
-//     Serial.print("DNS Server IP     : ");
-//     Serial.println(Ethernet.dnsServerIP());
-//     Serial.println();
-//     Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
-//   }
-// #endif
+#ifdef SERIAL_DEBUGING
+void printIPAddress()
+  {
+    Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
+    Serial.print("IP Address        : ");
+    Serial.println(Ethernet.localIP());
+    Serial.print("Subnet Mask       : ");
+    Serial.println(Ethernet.subnetMask());
+    Serial.print("Default Gateway IP: ");
+    Serial.println(Ethernet.gatewayIP());
+    Serial.print("DNS Server IP     : ");
+    Serial.println(Ethernet.dnsServerIP());
+    Serial.println();
+    Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
+  }
+#endif
 
 int angleToPulse(int angle){
   int pulse_wide = map(angle, 0, 180, MIN_PULSE_WIDTH,MAX_PULSE_WIDTH);   // map angle of 0 to 180 to Servo min and Servo max
@@ -118,8 +133,8 @@ void updateEncoderPosition(){
 
   if (knob_new_position != knob_position){
     #ifdef SERIAL_DEBUGING
-      // Serial.print(F("new = ")); Serial.print(F(knob_new_position));
-      // Serial.print(F(", prev = ")); Serial.print(F(knob_position));
+      Serial.print(F("new = ")); Serial.print(F(knob_new_position));
+      Serial.print(F(", prev = ")); Serial.print(F(knob_position));
     #endif
     knob_position = knob_new_position;
     // set limists
@@ -137,9 +152,9 @@ void updateEncoderPosition(){
     }
 
     #ifdef SERIAL_DEBUGING
-      // Serial.print("  |  knob position "); Serial.print(knob_position);
-      // Serial.print(" -> scaled by "); Serial.print(knob_scaling_factor);
-      // Serial.print(" to "); Serial.println(knob_scaled);
+      Serial.print("  |  knob position "); Serial.print(knob_position);
+      Serial.print(" -> scaled by "); Serial.print(knob_scaling_factor);
+      Serial.print(" to "); Serial.println(knob_scaled);
     #endif
 
     moveMotorToPosition(selected_servo, knob_scaled);
@@ -152,8 +167,8 @@ void updateEncoderPosition(){
 void servoOSCHandler(OSCMessage &msg, int addrOffset) {
   int inValue = msg.getFloat(0);
 
-  // Serial.print("osc msg value: ");
-  // Serial.println(inValue);
+  Serial.print("osc msg value: ");
+  Serial.println(inValue);
   moveMotorToPosition(0, inValue);
 }
 
@@ -209,7 +224,7 @@ void setup() {
   pwm.setPWMFreq(SERVO_FREQ);  // Analog servos run at ~50 Hz updates
   delay(10);
 
-/* DHCP
+// /* DHCP
   // start the Ethernet connection:
   if (Ethernet.begin(mac) == 0) {
       Serial.println("Failed to configure Ethernet using DHCP");
@@ -218,10 +233,10 @@ void setup() {
     }
     // print your local IP address:
     printIPAddress();
-*/
+// */
 
 // Static
-  Ethernet.begin(mac, IP);
+  // Ethernet.begin(mac, IP);
   // #ifdef SERIAL_DEBUGING
   //   printIPAddress();
   // #endif
@@ -240,7 +255,7 @@ void loop() {
     refresh_button_led(selected_servo);
 
     #ifdef SERIAL_DEBUGING
-     // Serial.print("button pressed, current servo: "); Serial.println(selected_servo);
+     Serial.print("button pressed, current servo: "); Serial.println(selected_servo);
     #endif
   }
 
@@ -280,7 +295,7 @@ void loop() {
       #ifdef SERIAL_DEBUGING
         Serial.println("Renewed success");
         //print your local IP address:
-        // printIPAddress();
+        printIPAddress();
       #endif
       break;
 
@@ -296,7 +311,7 @@ void loop() {
       #ifdef SERIAL_DEBUGING
         Serial.println("Rebind success");
         //print your local IP address:
-        // printIPAddress();
+        printIPAddress();
       #endif
       break;
 
