@@ -11,6 +11,7 @@
 #define ENCODER_LED_G 8
 #define ENCODER_LED_B 9
 
+#define PIXEL_PIN 3
 /*
 I2C
 Teensy LC SDA 18, SCL 19
@@ -30,6 +31,8 @@ Teensy LC SDA 18, SCL 19
 
 #include <Encoder.h>
 #include <Bounce2.h>
+
+#include <Adafruit_NeoPixel.h>
 
 // default address 0x40, default board setting
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
@@ -85,6 +88,12 @@ const unsigned int inPort = 8888;
 
 // array of servos position: {servo1, servo2, servo3}
 uint8_t servo_position[] = {0, 0, 0};
+
+// --- neopixel ------
+#define NUMPIXELS 1
+
+Adafruit_NeoPixel pixels(NUMPIXELS, PIXEL_PIN, NEO_GRB + NEO_KHZ800);
+
 
 //------------------------------ Functions -------------------------------------
 
@@ -195,6 +204,22 @@ void servo3_OSCHandler(OSCMessage &msg, int addrOffset) {
   moveMotorToPosition(2, inValue);
 }
 
+void localise_OSCHandler(OSCMessage &msg, int addrOffset) {
+  int inValue = msg.getFloat(0);
+  #ifdef SERIAL_DEBUGING
+    Serial.print("localise! ");
+    Serial.println(inValue);
+  #endif
+  if (inValue == 100){
+    pixels.setPixelColor(0, pixels.Color(150, 150, 150));
+    pixels.setBrightness(50);
+    pixels.show();
+  } else {
+    pixels.clear();
+    pixels.show();
+  }
+}
+
 void receiveOSCsingle(){
   // read incoming udp packets
   OSCMessage msgIn;
@@ -213,6 +238,8 @@ void receiveOSCsingle(){
       msgIn.route("/servo/1", servo1_OSCHandler);
       msgIn.route("/servo/2", servo2_OSCHandler);
       msgIn.route("/servo/3", servo3_OSCHandler);
+      msgIn.route("/device1/localise", localise_OSCHandler);
+
     }
 
     //finish reading this packet:
@@ -307,6 +334,14 @@ void setup() {
   #ifdef SERIAL_DEBUGING
     Serial.begin(SERIAL_SPEED);
   #endif
+
+  pixels.begin();
+  pixels.clear();
+
+  // neopixel test
+  pixels.setPixelColor(0, pixels.Color(0, 150, 0));
+  pixels.setBrightness(10);
+  pixels.show();
 
   //set RGB led off
   for (uint8_t i = 0; i < 2; i++){
