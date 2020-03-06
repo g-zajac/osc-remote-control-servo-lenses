@@ -1,4 +1,5 @@
 #define SERIAL_DEBUGING     // comment it out to disable serial debuging, for production i.e.
+#define SERIAL_SPEED 115200
 
 #include <Arduino.h>
 #include <UIPEthernet.h> // Used for Ethernet
@@ -38,27 +39,13 @@ Rotary encoder wireing
                           8 - Common GND -  (6)[GND]
 */
 Encoder knob(6, 5);
-int knob_position  = 0;
+int knob_position  = -999;
+uint8_t knob_scaling_factor = 12;   //higher number, more impulses per 0-180, one knob rotation has 24 jumps
+uint8_t knob_scaled;
+unsigned long previousMillis = 0;
+const long interval = 250;
 
-
-void updateEncoderPosition(){
-  long knob_new_position;
-  knob_new_position = knob.read();
-  if (knob_new_position != knob_position){
-    knob_position = knob_new_position;
-    // set limists
-    if (knob_position < 0) knob_position = 0;
-    if (knob_position > 4*180) knob_position = 4*180;
-
-    #ifdef SERIAL_DEBUGING
-      Serial.print("knob position = "); Serial.println(knob_position);
-    #endif
-    // update servo position
-    //TODO sync position with current OSC position value
-    //TODO add manual OSC flag
-  };
-}
-
+//------------------------------ Functions -------------------------------------
 
 #ifdef SERIAL_DEBUGING
 void printIPAddress()
@@ -81,8 +68,8 @@ int angleToPulse(int angle){
   int pulse_wide = map(angle, 0, 180, MIN_PULSE_WIDTH,MAX_PULSE_WIDTH);   // map angle of 0 to 180 to Servo min and Servo max
   int analog_value = int(float(pulse_wide) / 1000000 * SERVO_FREQ * 4096);
   #ifdef SERIAL_DEBUGING
-    Serial.print("Angle: "); Serial.print(angle);
-    Serial.print(" pulse: "); Serial.println(analog_value);
+    // Serial.print("Angle: "); Serial.print(angle);
+    // Serial.print(" pulse: "); Serial.println(analog_value);
   #endif
   return analog_value;
 }
@@ -91,10 +78,49 @@ void moveMotorToPosition(uint8_t motor, int position_in_degrees){
   pwm.setPWM(motor, 0, angleToPulse(position_in_degrees));
 }
 
+void updateEncoderPosition(){
+
+  long knob_new_position;
+  knob_new_position = (knob.read() / 4);
+
+  if (knob_new_position != knob_position){
+    #ifdef SERIAL_DEBUGING
+      Serial.print("new = "); Serial.print(knob_new_position);
+      Serial.print(", prev = "); Serial.print(knob_position);
+    #endif
+    knob_position = knob_new_position;
+    // set limists
+    if (knob_position < 0) {
+      knob_position = 0;
+      knob.write(0);
+    }
+
+    // encoder has 24 jumps / rotation
+    knob_scaled = map(knob_position, 0, knob_scaling_factor, 0, 180);
+
+    if (knob_scaled > 180){
+      knob_position = knob_scaling_factor;
+      knob.write(knob_scaling_factor * 4);
+    }
+
+    #ifdef SERIAL_DEBUGING
+      Serial.print("  |  knob position "); Serial.print(knob_position);
+      Serial.print(" -> scaled by "); Serial.print(knob_scaling_factor);
+      Serial.print(" to "); Serial.println(knob_scaled);
+    #endif
+
+    moveMotorToPosition(0, knob_scaled);
+
+    //TODO sync position with current OSC position value
+    //TODO add manual OSC flag
+  };
+}
+
+// -----------------------------------------------------------------------------
 
 void setup() {
   #ifdef SERIAL_DEBUGING
-    Serial.begin(9600);
+    Serial.begin(SERIAL_SPEED);
   #endif
 
   //initialize servo board
@@ -126,7 +152,18 @@ void setup() {
 }
 
 void loop() {
+
   updateEncoderPosition();
+
+  unsigned long currentMillis = millis();
+  if (currentMillis - previousMillis >= interval) {
+    previousMillis = currentMillis;
+    // #ifdef SERIAL_DEBUGING
+    //   Serial.print("encoder position = "); Serial.println(knob_position);
+    // #endif
+  }
+
+
 
 
 
@@ -169,16 +206,4 @@ void loop() {
     break;
 
    }
-
-  // Serial.println("set servo @ 0");
-  // moveMotorToPosition(0, 0);
-  // moveMotorToPosition(1, 0);
-  // moveMotorToPosition(2, 0);
-  // delay(5000);
-  //
-  // Serial.println("set servo @ 180");
-  // moveMotorToPosition(0, 180);
-  // moveMotorToPosition(1, 180);
-  // moveMotorToPosition(2, 180);
-  // delay(10000);
 }
