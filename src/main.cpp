@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 109
+#define FIRMWARE_VERSION 110
 #define DEVICE_ID 131         // NOTE number? IP address i.e 101, 102, 103, 104... isadora 100
 #define SERIAL_DEBUGING     // comment it out to disable serial debuging, for production i.e.
 #define SERIAL_SPEED 115200
@@ -100,6 +100,8 @@ uint8_t servo_position[] = {0, 0, 0};
 
 Adafruit_NeoPixel pixels(NUMPIXELS, PIXEL_PIN, NEO_GRB + NEO_KHZ800);
 
+// ---- web server ---
+String readString;
 
 //------------------------------ Functions -------------------------------------
 
@@ -415,86 +417,136 @@ void loop() {
   }
 
   #ifdef WEB_SERVER
+  // Create a client connection
   EthernetClient client = server.available();
   if (client) {
-  Serial.println("new client");
-  // an http request ends with a blank line
-  boolean currentLineIsBlank = true;
-  while (client.connected()) {
-    if (client.available()) {
-      char c = client.read();
-      Serial.write(c);
-      if (c == '\n' && currentLineIsBlank) {
-        client.println("HTTP/1.1 200 OK");
-        client.println("Content-Type: text/html");
-        client.println("Connection: close");
-        client.println("Refresh: 5");
-        client.println();
-        client.println("<!DOCTYPE HTML>");
-        client.println("<html>");
-        client.print("<h1>SSP Servo controler</h1>");
-        client.println("<h3>Device ID: ");
-        client.print(DEVICE_ID); client.println("</h3>");
-        client.print("Firmware version: ");
-        client.println(FIRMWARE_VERSION);
-        client.println("<br />");
-        client.println("IP address: ");
-        client.println(Ethernet.localIP());
-        client.println("<br />");
-        //TODO add uptime function with sec + human hh:mm:ss?
-        client.print("uptime: ");
-        client.print(uptimeInSecs());
-        client.println(" secs");
-        client.println("<br />");
+    while (client.connected()) {
+      if (client.available()) {
+        char c = client.read();
 
-        client.print("knob position: "); client.print(knob_position);
-        client.print(" -> scaled by "); client.print(knob_scaling_factor);
-        client.print(" to "); client.println(knob_scaled);
+        //read char by char HTTP request
+        if (readString.length() < 100) {
+          //store characters to string
+          readString += c;
+          //Serial.print(c);
+         }
 
-        client.println("<br />");
+         //if HTTP request has ended
+         if (c == '\n') {
+           Serial.println(readString); //print to serial monitor for debuging
 
-        client.println("<ul>");
-        for (uint8_t i = 0; i < 3; i++){
-          client.println("<li>");
-          client.print("servo "); client.println(i);
-          client.println(" @ ");
-          client.print(servo_position[i]);
-          if (i == selected_servo){
-            switch (i){
-              case 0:
-              client.print("<span style='color:red;'> <- selected</span>");
-              break;
-              case 1:
-              client.print("<span style='color:green;'> <- selected</span>");
-              break;
-              case 2:
-              client.print("<span style='color:blue;'> <- selected</span>");
-              break;
-            }
-          }
-          client.println("</li>");
-        }
-        client.println("</ul");
-        client.println("</html>");
+           client.println("HTTP/1.1 200 OK"); //send new page
+           client.println("Content-Type: text/html");
+           // client.println("<meta http-equiv=\"refresh\" content=>'0;url=http://arduino.cc/'");
+           client.println("Refresh: 3;URL='//10.0.10.131/'>");
+           client.println("Connection: close");
+           // client.println("Refresh: 3");
+           client.println();
+           client.println("<!DOCTYPE HTML>");
+           client.println("<HTML>");
+           client.println("<HEAD>");
+           client.println("<TITLE>Camera Lens Control</TITLE>");
+           client.println("</HEAD>");
+           client.println("<BODY>");
+           client.println("<H1>SSP Camera Lens controler</H1>");
+           client.println("<hr />");
+           client.println("<br />");
+           client.println("<h3>Device ID: ");
+           client.print(DEVICE_ID); client.println("</h3>");
+           client.print("Firmware version: ");
+           client.println(FIRMWARE_VERSION);
+           client.println("<br />");
+           client.println("IP address: ");
+           client.println(Ethernet.localIP());
+           client.println("<br />");
+           client.print("uptime: ");
+           client.print(uptimeInSecs());
+           client.println(" secs");
+           client.println("<br />");
 
-        client.println("<style type='text/css'>");
-          client.println("body {background-color: #222222; color: #fefefe;}");
-          client.println("h1 {color: #104bab}");
-        client.println("</style>");
-        break;
-      }
-      if (c == '\n') {
-        currentLineIsBlank = true;
-      } else if (c != '\r') {
-        currentLineIsBlank = false;
-      }
+           client.print("knob position: "); client.print(knob_position);
+           client.print(" -> scaled by "); client.print(knob_scaling_factor);
+           client.print(" to "); client.println(knob_scaled);
+
+           client.println("<ul>");
+           for (uint8_t i = 0; i < 3; i++){
+             client.println("<li>");
+             client.print("servo "); client.println(i);
+             client.println(" @ ");
+             client.print(servo_position[i]);
+             if (i == selected_servo){
+               switch (i){
+                 case 0:
+                 client.print("<span style='color:red;'> <- selected</span>");
+                 break;
+                 case 1:
+                 client.print("<span style='color:green;'> <- selected</span>");
+                 break;
+                 case 2:
+                 client.print("<span style='color:blue;'> <- selected</span>");
+                 break;
+               }
+             }
+             client.println("</li>");
+           }
+           client.println("</ul");
+
+           client.println("<br />");
+           client.println("<a href=\"/?button0clicked\"\"><button type='button'>Set Servos @ 0</button></a>");
+           client.println("<a href=\"/?button90clicked\"\"><button type='button'>Set Servos @ 90</button></a>");
+           client.println("<a href=\"/?button180clicked\"\"><button type='button'>Set Servos @ 180</button></a>");
+           client.println("<br />");
+
+
+
+           client.println("<br />");
+           client.println("</BODY>");
+           client.println("</HTML>");
+
+           client.println("<style type='text/css'>");
+             client.println("body {background-color: #222222; color: #fefefe;}");
+             client.println("h1 {color: #104bab}");
+             client.println("h3 {color: #ff5620}");
+           client.println("</style>");
+
+           delay(1);
+           //stopping client
+           client.stop();
+           // client.flush();
+           //controls the Arduino if you press the buttons
+
+           if (readString.indexOf("?button0clicked") >0 ){
+             #ifdef SERIAL_DEBUGING
+               Serial.println("Web button pressed, setting servos @ 0");
+             #endif
+             moveMotorToPosition(0,0);
+             moveMotorToPosition(1,0);
+             moveMotorToPosition(2,0);
+           }
+           if (readString.indexOf("?button90clicked") >0){
+             #ifdef SERIAL_DEBUGING
+               Serial.println("Web button pressed, setting servos @ 90");
+             #endif
+             moveMotorToPosition(0,90);
+             moveMotorToPosition(1,90);
+             moveMotorToPosition(2,90);
+           }
+           if (readString.indexOf("?button180clicked") >0){
+             #ifdef SERIAL_DEBUGING
+               Serial.println("Web button pressed, setting servos @ 90");
+             #endif
+             moveMotorToPosition(0,180);
+             moveMotorToPosition(1,180);
+             moveMotorToPosition(2,180);
+           }
+
+            //clearing string for next read
+            readString="";
+
+         }
+       }
     }
-  }
-  delay(1);
-  // close the connection:
-  client.stop();
-  Serial.println("client disconnected");
-  }
+  }                      			   // start to listen for clients
   #endif
 
 }
