@@ -447,6 +447,12 @@ void loop() {
         client.println(" secs");
         client.println("<br />");
 
+        client.print("knob position: "); client.print(knob_position);
+        client.print(" -> scaled by "); client.print(knob_scaling_factor);
+        client.print(" to "); client.println(knob_scaled);
+
+        client.println("<br />");
+
         client.println("<ul>");
         for (uint8_t i = 0; i < 3; i++){
           client.println("<li>");
