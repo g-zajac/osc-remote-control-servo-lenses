@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 112
+#define FIRMWARE_VERSION 113
 #define DEVICE_ID 131         // NOTE number? IP address i.e 101, 102, 103, 104... isadora 100
 #define SERIAL_DEBUGING     // comment it out to disable serial debuging, for production i.e.
 #define SERIAL_SPEED 115200
@@ -445,14 +445,15 @@ void loop() {
            client.println("<!DOCTYPE HTML>");
            client.println("<HTML>");
            client.println("<HEAD>");
-           client.println("<TITLE>Camera Lens Control</TITLE>");
+           client.println("<TITLE>Camera Lens Controler</TITLE>");
            client.println("</HEAD>");
            client.println("<BODY>");
            client.println("<H1>SSP Camera Lens controler</H1>");
            client.println("<hr />");
            client.println("<br />");
-           client.println("<h3>Device ID: ");
+           client.println("<h3><a href=\"/?buttonIDclicked\"\">Device ID:</a>");
            client.print(DEVICE_ID); client.println("</h3>");
+           client.println("<br />");
            client.print("Firmware version: ");
            client.println(FIRMWARE_VERSION);
            client.println("<br />");
@@ -542,7 +543,17 @@ void loop() {
              moveMotorToPosition(1,180);
              moveMotorToPosition(2,180);
            }
-
+           if (readString.indexOf("?buttonIDclicked") >0){
+             #ifdef SERIAL_DEBUGING
+               Serial.println("Web button pressed, identifing unit with LED");
+             #endif
+             pixels.setPixelColor(0, pixels.Color(150, 150, 150));
+             pixels.setBrightness(50);
+             pixels.show();
+             delay(500);
+             pixels.clear();
+             pixels.show();
+           }
             //clearing string for next read
             readString="";
 
