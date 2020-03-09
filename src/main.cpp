@@ -1,4 +1,5 @@
-#define FIRMWARE_VERSION 106
+#define FIRMWARE_VERSION 107
+#define DEVICE_ID 1         // NOTE number? IP address i.e 101, 102, 103, 104... isadora 100
 #define SERIAL_DEBUGING     // comment it out to disable serial debuging, for production i.e.
 #define SERIAL_SPEED 115200
 #define WEB_SERVER
@@ -428,8 +429,27 @@ void loop() {
         client.println();
         client.println("<!DOCTYPE HTML>");
         client.println("<html>");
-        client.print("<h1>Analogue Values</h1>");
+        client.print("<h1>SSP Servo controler</h1>");
+        client.print("Firmware version: ");
+        client.println(FIRMWARE_VERSION);
+        client.println("<br />");
+        client.println("IP address: ");
+        client.println(Ethernet.localIP());
+        client.println("<br />");
+        //TODO add uptime function with sec + human hh:mm:ss?
+        client.println("uptime: ");
+        client.println(millis());
+        client.println("<br />");
 
+        client.println("<ul>");
+        for (uint8_t i = 0; i < 3; i++){
+          client.println("<li>");
+          client.print("servo "); client.println(i);
+          client.println(" @ ");
+          client.print(servo_position[i]);
+          client.println("</li>");
+        }
+        client.println("</ul");
         client.println("</html>");
         break;
       }
