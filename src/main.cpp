@@ -1,5 +1,5 @@
 #define FIRMWARE_VERSION 107
-#define DEVICE_ID 1         // NOTE number? IP address i.e 101, 102, 103, 104... isadora 100
+#define DEVICE_ID 131         // NOTE number? IP address i.e 101, 102, 103, 104... isadora 100
 #define SERIAL_DEBUGING     // comment it out to disable serial debuging, for production i.e.
 #define SERIAL_SPEED 115200
 #define WEB_SERVER
@@ -53,7 +53,7 @@ period 10ms / 50Hz
 
 // Ethernet MAC address - must be unique on your network - MAC Reads T4A001 in hex (unique in your network)
 byte mac[] = { 0x54, 0x34, 0x41, 0x30, 0x30, 0x31 };
-IPAddress IP(10,0,10,132);
+IPAddress IP(10,0,10,DEVICE_ID);
 
 /*
 Rotary encoder wireing
@@ -430,6 +430,8 @@ void loop() {
         client.println("<!DOCTYPE HTML>");
         client.println("<html>");
         client.print("<h1>SSP Servo controler</h1>");
+        client.println("<h3>Device ID: ");
+        client.print(DEVICE_ID); client.println("</h3>");
         client.print("Firmware version: ");
         client.println(FIRMWARE_VERSION);
         client.println("<br />");
