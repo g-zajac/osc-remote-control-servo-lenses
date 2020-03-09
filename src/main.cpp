@@ -98,7 +98,7 @@ Adafruit_NeoPixel pixels(NUMPIXELS, PIXEL_PIN, NEO_GRB + NEO_KHZ800);
 //------------------------------ Functions -------------------------------------
 
 void refresh_button_led(uint8_t active_servo){
-  for (uint8_t i = 0; i < 2; i++){
+  for (uint8_t i = 0; i < 3; i++){
     if (i == active_servo) digitalWrite(rgb_led_pins[i], LOW);
     else digitalWrite(rgb_led_pins[i], HIGH);
   }
@@ -344,7 +344,7 @@ void setup() {
   pixels.show();
 
   //set RGB led off
-  for (uint8_t i = 0; i < 2; i++){
+  for (uint8_t i = 0; i < 3; i++){
     pinMode(rgb_led_pins[i], OUTPUT);
     digitalWrite(rgb_led_pins[i], HIGH);
   }
