@@ -87,6 +87,10 @@ IPAddress targetIP(10, 0, 10, 101);
 const unsigned int targetPort = 9999;
 const unsigned int inPort = 8888;
 
+#ifdef WEB_SERVER
+  EthernetServer server(80);                       //server port
+#endif
+
 // array of servos position: {servo1, servo2, servo3}
 uint8_t servo_position[] = {0, 0, 0};
 
@@ -382,6 +386,11 @@ void setup() {
 
   //TODO add check connected status if
   Udp.begin(inPort);
+
+#ifdef WEB_SERVER
+  server.begin();                       			   // start to listen for clients
+#endif
+
 }
 
 
@@ -400,5 +409,42 @@ void loop() {
     previousMillis = currentMillis;
     sendOSCbundle();
   }
+
+  #ifdef WEB_SERVER
+  EthernetClient client = server.available();
+  if (client) {
+  Serial.println("new client");
+  // an http request ends with a blank line
+  boolean currentLineIsBlank = true;
+  while (client.connected()) {
+    if (client.available()) {
+      char c = client.read();
+      Serial.write(c);
+      if (c == '\n' && currentLineIsBlank) {
+        client.println("HTTP/1.1 200 OK");
+        client.println("Content-Type: text/html");
+        client.println("Connection: close");
+        client.println("Refresh: 5");
+        client.println();
+        client.println("<!DOCTYPE HTML>");
+        client.println("<html>");
+        client.print("<h1>Analogue Values</h1>");
+
+        client.println("</html>");
+        break;
+      }
+      if (c == '\n') {
+        currentLineIsBlank = true;
+      } else if (c != '\r') {
+        currentLineIsBlank = false;
+      }
+    }
+  }
+  delay(1);
+  // close the connection:
+  client.stop();
+  Serial.println("client disconnected");
+  }
+  #endif
 
 }
