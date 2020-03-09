@@ -103,6 +103,10 @@ Adafruit_NeoPixel pixels(NUMPIXELS, PIXEL_PIN, NEO_GRB + NEO_KHZ800);
 
 //------------------------------ Functions -------------------------------------
 
+int uptimeInSecs(){
+  return (int)(millis()/1000);
+}
+
 void refresh_button_led(uint8_t active_servo){
   for (uint8_t i = 0; i < 3; i++){
     if (i == active_servo) digitalWrite(rgb_led_pins[i], LOW);
@@ -314,8 +318,7 @@ void maintainEthernetConnection(){
 void sendOSCbundle(){
   OSCBundle bndl;
   bndl.add("/device1/ver").add(FIRMWARE_VERSION);
-  uptime = (int)(millis()/1000);
-  bndl.add("/device1/uptime").add(uptime);
+  bndl.add("/device1/uptime").add(uptimeInSecs());
 
   bndl.add("/device1/servo1/position").add(servo_position[0]);
   bndl.add("/device1/servo2/position").add(servo_position[1]);
@@ -439,8 +442,9 @@ void loop() {
         client.println(Ethernet.localIP());
         client.println("<br />");
         //TODO add uptime function with sec + human hh:mm:ss?
-        client.println("uptime: ");
-        client.println(millis());
+        client.print("uptime: ");
+        client.print(uptimeInSecs());
+        client.println(" secs");
         client.println("<br />");
 
         client.println("<ul>");
