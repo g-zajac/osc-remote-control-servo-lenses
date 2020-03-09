@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 107
+#define FIRMWARE_VERSION 109
 #define DEVICE_ID 131         // NOTE number? IP address i.e 101, 102, 103, 104... isadora 100
 #define SERIAL_DEBUGING     // comment it out to disable serial debuging, for production i.e.
 #define SERIAL_SPEED 115200
@@ -459,10 +459,28 @@ void loop() {
           client.print("servo "); client.println(i);
           client.println(" @ ");
           client.print(servo_position[i]);
+          if (i == selected_servo){
+            switch (i){
+              case 0:
+              client.print("<span style='color:red;'> <- selected</span>");
+              break;
+              case 1:
+              client.print("<span style='color:green;'> <- selected</span>");
+              break;
+              case 2:
+              client.print("<span style='color:blue;'> <- selected</span>");
+              break;
+            }
+          }
           client.println("</li>");
         }
         client.println("</ul");
         client.println("</html>");
+
+        client.println("<style type='text/css'>");
+          client.println("body {background-color: #222222; color: #fefefe;}");
+          client.println("h1 {color: #104bab}");
+        client.println("</style>");
         break;
       }
       if (c == '\n') {
