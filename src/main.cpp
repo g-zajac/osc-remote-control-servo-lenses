@@ -1,6 +1,7 @@
 #define FIRMWARE_VERSION 106
 #define SERIAL_DEBUGING     // comment it out to disable serial debuging, for production i.e.
 #define SERIAL_SPEED 115200
+#define WEB_SERVER
 
 //-------- PIN MAPPING ---------------
 #define ENCODER_A 5
@@ -362,7 +363,7 @@ void setup() {
   pwm.setPWMFreq(SERVO_FREQ);  // Analog servos run at ~50 Hz updates
   delay(10);
 
-// /* DHCP
+/* DHCP
   // start the Ethernet connection:
   if (Ethernet.begin(mac) == 0) {
       Serial.println("Failed to configure Ethernet using DHCP");
@@ -371,13 +372,13 @@ void setup() {
     }
     // print your local IP address:
     printIPAddress();
-// */
+*/
 
 // Static
-  // Ethernet.begin(mac, IP);
-  // #ifdef SERIAL_DEBUGING
-  //   printIPAddress();
-  // #endif
+  Ethernet.begin(mac, IP);
+  #ifdef SERIAL_DEBUGING
+    printIPAddress();
+  #endif
 
   //TODO add check connected status if
   Udp.begin(inPort);
