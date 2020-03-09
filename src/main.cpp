@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 110
+#define FIRMWARE_VERSION 112
 #define DEVICE_ID 131         // NOTE number? IP address i.e 101, 102, 103, 104... isadora 100
 #define SERIAL_DEBUGING     // comment it out to disable serial debuging, for production i.e.
 #define SERIAL_SPEED 115200
@@ -492,9 +492,9 @@ void loop() {
            client.println("</ul");
 
            client.println("<br />");
-           client.println("<a href=\"/?button0clicked\"\"><button type='button'>Set Servos @ 0</button></a>");
-           client.println("<a href=\"/?button90clicked\"\"><button type='button'>Set Servos @ 90</button></a>");
-           client.println("<a href=\"/?button180clicked\"\"><button type='button'>Set Servos @ 180</button></a>");
+           client.println("<a href=\"/?button0clicked\"\"><button class='button' type='button'>Set Servos @ 0</button></a>");
+           client.println("<a href=\"/?button90clicked\"\"><button class='button' type='button'>Set Servos @ 90</button></a>");
+           client.println("<a href=\"/?button180clicked\"\"><button class='button' type='button'>Set Servos @ 180</button></a>");
            client.println("<br />");
 
 
@@ -504,9 +504,12 @@ void loop() {
            client.println("</HTML>");
 
            client.println("<style type='text/css'>");
-             client.println("body {background-color: #222222; color: #fefefe;}");
+             client.println("body {background-color: #222222; color: #fefefe; font-family:  Helvetica, Arial, sans-serif; font-weight: lighter;}");
              client.println("h1 {color: #104bab}");
              client.println("h3 {color: #ff5620}");
+
+             client.println(".button {background-color: #222222; color: white; border: 1px solid #104bab; border-radius: 2px; padding: 15px 32px; margin: 4px 2px; font-size: 16px; cursor: pointer;}");
+
            client.println("</style>");
 
            delay(1);
