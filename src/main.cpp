@@ -2,8 +2,8 @@
 #define DEVICE_ID 131         // NOTE number? IP address i.e 101, 102, 103, 104... isadora 100
 #define SERIAL_DEBUGING     // comment it out to disable serial debuging, for production i.e.
 #define SERIAL_SPEED 115200
-#define WEB_SERVER
-#define NEOPIXEL
+#define WEB_SERVER          // comment out to disable webserver
+#define NEOPIXEL            // comment out to disable status led (neopixel)
 
 //-------- PIN MAPPING ---------------
 #define ENCODER_A 5
@@ -71,15 +71,15 @@ Rotary encoder wireing
 */
 Encoder knob(ENCODER_A, ENCODER_B);
 int knob_position  = -999;
-//******************************************************************************
+//*****************************************************************************************
 const uint8_t knob_scaling_factor = 12;  // number of encoder ticks per 0-180 servo movment
-//******************************************************************************
+//*****************************************************************************************
 uint8_t knob_scaled;
 unsigned long previousMillis = 0;
 const long interval = 500;
 long uptime = 0;
 
-Bounce debouncer = Bounce(); // Instantiate a Bounce object
+Bounce debouncer = Bounce(); // Initiate a Bounce object
 uint8_t selected_servo = 0;
 
 // define RGB led pins     R G B
@@ -89,7 +89,7 @@ const uint8_t rgb_led_pins[] = {ENCODER_LED_R, ENCODER_LED_G, ENCODER_LED_B};
 EthernetUDP Udp;
 
 // destination address
-IPAddress targetIP(10, 0, 10, 101);
+IPAddress targetIP(10, 0, 10, 101);   // Isadora machine IP address
 const unsigned int targetPort = 9999;
 const unsigned int inPort = 8888;
 
@@ -100,15 +100,17 @@ const unsigned int inPort = 8888;
 // array of servos position: {servo1, servo2, servo3}
 uint8_t servo_position[] = {0, 0, 0};
 
-#ifdef NEOPIXEL
   // --- neopixel ------
+#ifdef NEOPIXEL
   #define NUMPIXELS 1
-
   Adafruit_NeoPixel pixels(NUMPIXELS, PIXEL_PIN, NEO_RGB + NEO_KHZ800);
   // int previousPixelColor[] = {0,0,0};
 #endif
-// ---- web server ---
-String readString;
+
+#ifdef WEB_SERVER
+  // ---- web server ---
+  String readString;
+#endif
 
 //------------------------------ Functions -------------------------------------
 
@@ -293,7 +295,6 @@ void receiveOSCsingle(){
   // read incoming udp packets
   OSCMessage msgIn;
   int size;
-  int success;
 
   if( (size = Udp.parsePacket())>0)
   {
@@ -314,7 +315,7 @@ void receiveOSCsingle(){
     Udp.flush();
     //restart UDP connection to receive packets from other clients
     Udp.stop();
-    success = Udp.begin(inPort);
+    Udp.begin(inPort);
   }
 }
 
