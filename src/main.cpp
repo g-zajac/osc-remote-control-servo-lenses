@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 113
+#define FIRMWARE_VERSION 114
 #define DEVICE_ID 131         // NOTE number? IP address i.e 101, 102, 103, 104... isadora 100
 #define SERIAL_DEBUGING     // comment it out to disable serial debuging, for production i.e.
 #define SERIAL_SPEED 115200
@@ -350,8 +350,8 @@ void setup() {
   pixels.clear();
 
   // neopixel test
-  pixels.setPixelColor(0, pixels.Color(0, 150, 0));
   pixels.setBrightness(10);
+  pixels.setPixelColor(0, pixels.Color(0, 255, 0));
   pixels.show();
 
   //set RGB led off
@@ -468,6 +468,11 @@ void loop() {
            client.print("knob position: "); client.print(knob_position);
            client.print(" -> scaled by "); client.print(knob_scaling_factor);
            client.print(" to "); client.println(knob_scaled);
+           client.println("<br />");
+           client.println("status led color: ");
+           // client.println(pixels.getPixelColor(0));
+
+           Serial.print("neopixel color: "); Serial.println(pixels.getPixelColor(0));
 
            client.println("<ul>");
            for (uint8_t i = 0; i < 3; i++){
@@ -491,6 +496,8 @@ void loop() {
              client.println("</li>");
            }
            client.println("</ul");
+           client.println("<br />");
+
 
            client.println("<br />");
            client.println("<a href=\"/?button0clicked\"\"><button class='button' type='button'>Set Servos @ 0</button></a>");
