@@ -9,10 +9,11 @@ This project solves a problem of remote controling non-motorized lens. Three cam
 <!-- replace woith SVG? -->
 
 ## Hardware
-* arduino nano
+* ~~arduino nano~~ (not enough flash) moved to teensy LC
 * ethernet ENC28J60 module
-* mini servo 180deg
-* rotary encoder
+* PCA9685 I2C servo driver
+* 3 x mini servo 180deg (focus, zoom, aperture)
+* rotary encoder with RGB led
 
 ## Built With
 * [Drakon](http://drakon-editor.sourceforge.net) - visual language for flowcahrts
