@@ -6,8 +6,8 @@
 #define NEOPIXEL            // comment out to disable status led (neopixel)
 
 //-------- PIN MAPPING ---------------
-#define ENCODER_A 5
-#define ENCODER_B 6
+#define ENCODER_A 6
+#define ENCODER_B 5
 #define KNOB_BUTTON_PIN 4
 
 #define ENCODER_LED_R 7
@@ -281,9 +281,9 @@ void receiveOSCsingle(){
 
     // route messages
     if(!msgIn.hasError()) {
-      msgIn.route("/servo/1", servo1_OSCHandler);
-      msgIn.route("/servo/2", servo2_OSCHandler);
-      msgIn.route("/servo/3", servo3_OSCHandler);
+      msgIn.route("/device1/servo/1", servo1_OSCHandler);
+      msgIn.route("/device1/servo/2", servo2_OSCHandler);
+      msgIn.route("/device1/servo/3", servo3_OSCHandler);
       msgIn.route("/device1/localise", localise_OSCHandler);
     }
 
