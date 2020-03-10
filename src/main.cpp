@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 115
+#define FIRMWARE_VERSION 116
 #define DEVICE_ID 131         // NOTE number? IP address i.e 101, 102, 103, 104... isadora 100
 #define SERIAL_DEBUGING     // comment it out to disable serial debuging, for production i.e.
 #define SERIAL_SPEED 115200
@@ -113,30 +113,6 @@ uint8_t servo_position[] = {0, 0, 0};
 #endif
 
 //------------------------------ Functions -------------------------------------
-
-// #ifdef NEOPIXEL
-// void storePixelColor(){
-//   uint32_t pixelColor = pixels.getPixelColor(0);
-//   previousPixelColor[0] = pixelColor >> 16 & 0x7f;  // G
-//   previousPixelColor[1] = pixelColor >> 8 & 0x7f;   // R
-//   previousPixelColor[2] = pixelColor >> 0 & 0x7f;   // B
-//
-//   #ifdef SERIAL_DEBUGING
-//     Serial.print("piexel color R=");
-//     Serial.print(previousPixelColor[0]);
-//     Serial.print(", G=");
-//     Serial.print(previousPixelColor[1]);
-//     Serial.print(", B= ");
-//     Serial.println(previousPixelColor[2]);
-//   #endif
-// }
-
-// void setPixelColorBack(){
-//   pixels.setPixelColor(0, pixels.Color(previousPixelColor[0], previousPixelColor[1], previousPixelColor[2]));
-//   pixels.show();
-// }
-// #endif
-
 int uptimeInSecs(){
   return (int)(millis()/1000);
 }
@@ -333,47 +309,6 @@ void checkKnobButton(){
   }
 }
 
-void maintainEthernetConnection(){
-  switch (Ethernet.maintain())
-  {
-    case 1:
-      //renewed fail
-      #ifdef SERIAL_DEBUGING
-        Serial.println("Error: renewed fail");
-      #endif
-      break;
-
-    case 2:
-      //renewed success
-      #ifdef SERIAL_DEBUGING
-        Serial.println("Renewed success");
-        //print your local IP address:
-        printIPAddress();
-      #endif
-      break;
-
-    case 3:
-      //rebind fail
-      #ifdef SERIAL_DEBUGING
-        Serial.println("Error: rebind fail");
-      #endif
-      break;
-
-    case 4:
-      //rebind success
-      #ifdef SERIAL_DEBUGING
-        Serial.println("Rebind success");
-        //print your local IP address:
-        printIPAddress();
-      #endif
-      break;
-
-    default:
-    //nothing happened
-    break;
-   }
-}
-
 void sendOSCbundle(){
   OSCBundle bndl;
   bndl.add("/device1/ver").add(FIRMWARE_VERSION);
@@ -430,17 +365,6 @@ void setup() {
   pwm.setPWMFreq(SERVO_FREQ);  // Analog servos run at ~50 Hz updates
   delay(10);
 
-/* DHCP
-  // start the Ethernet connection:
-  if (Ethernet.begin(mac) == 0) {
-      Serial.println("Failed to configure Ethernet using DHCP");
-      // no point in carrying on, so do nothing forevermore:
-      for (;;);
-    }
-    // print your local IP address:
-    printIPAddress();
-*/
-
 // Static
   Ethernet.begin(mac, IP);
   #ifdef SERIAL_DEBUGING
@@ -460,8 +384,6 @@ void loop() {
 
   checkKnobButton();
   readEncoderPosition();
-
-  maintainEthernetConnection();
 
   // TODO only if connected
   receiveOSCsingle();
@@ -530,11 +452,6 @@ void loop() {
            client.print(" -> scaled by "); client.print(knob_scaling_factor);
            client.print(" to "); client.println(knob_scaled);
            client.println("<br />");
-           // client.println("status led color: ");
-           // client.print("R: "); client.print(previousPixelColor[0]);
-           // client.print(", G: "); client.print(previousPixelColor[1]);
-           // client.print(", B: "); client.print(previousPixelColor[2]);
-           // client.println("<br />");
 
            client.println("<ul>");
            for (uint8_t i = 0; i < 3; i++){
@@ -585,7 +502,6 @@ void loop() {
            delay(1);
            //stopping client
            client.stop();
-           // client.flush();
            //controls the Arduino if you press the buttons
 
            if (readString.indexOf("?button0clicked") >0 ){
