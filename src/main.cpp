@@ -14,6 +14,8 @@
 #define ENCODER_LED_B 9
 
 #define PIXEL_PIN 3
+#define BRIGHTNESS 10
+
 /*
 I2C
 Teensy LC SDA 18, SCL 19
@@ -98,12 +100,34 @@ uint8_t servo_position[] = {0, 0, 0};
 // --- neopixel ------
 #define NUMPIXELS 1
 
-Adafruit_NeoPixel pixels(NUMPIXELS, PIXEL_PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel pixels(NUMPIXELS, PIXEL_PIN, NEO_RGB + NEO_KHZ800);
+// int previousPixelColor[] = {0,0,0};
 
 // ---- web server ---
 String readString;
 
 //------------------------------ Functions -------------------------------------
+
+// void storePixelColor(){
+//   uint32_t pixelColor = pixels.getPixelColor(0);
+//   previousPixelColor[0] = pixelColor >> 16 & 0x7f;  // G
+//   previousPixelColor[1] = pixelColor >> 8 & 0x7f;   // R
+//   previousPixelColor[2] = pixelColor >> 0 & 0x7f;   // B
+//
+//   #ifdef SERIAL_DEBUGING
+//     Serial.print("piexel color R=");
+//     Serial.print(previousPixelColor[0]);
+//     Serial.print(", G=");
+//     Serial.print(previousPixelColor[1]);
+//     Serial.print(", B= ");
+//     Serial.println(previousPixelColor[2]);
+//   #endif
+// }
+
+// void setPixelColorBack(){
+//   pixels.setPixelColor(0, pixels.Color(previousPixelColor[0], previousPixelColor[1], previousPixelColor[2]));
+//   pixels.show();
+// }
 
 int uptimeInSecs(){
   return (int)(millis()/1000);
@@ -190,30 +214,42 @@ void readEncoderPosition(){
 }
 
 void servo1_OSCHandler(OSCMessage &msg, int addrOffset) {
+  pixels.setPixelColor(0, pixels.Color(255, 255, 0));
+  pixels.show();
   int inValue = msg.getFloat(0);
   #ifdef SERIAL_DEBUGING
     Serial.print("osc servo 1 update: ");
     Serial.println(inValue);
   #endif
   moveMotorToPosition(0, inValue);
+  pixels.clear();
+  pixels.show();
 }
 
 void servo2_OSCHandler(OSCMessage &msg, int addrOffset) {
+  pixels.setPixelColor(0, pixels.Color(255, 255, 0));
+  pixels.show();
   int inValue = msg.getFloat(0);
   #ifdef SERIAL_DEBUGING
     Serial.print("osc servo 2 update: ");
     Serial.println(inValue);
   #endif
   moveMotorToPosition(1, inValue);
+  pixels.clear();
+  pixels.show();
 }
 
 void servo3_OSCHandler(OSCMessage &msg, int addrOffset) {
+  pixels.setPixelColor(0, pixels.Color(255, 255, 0));
+  pixels.show();
   int inValue = msg.getFloat(0);
   #ifdef SERIAL_DEBUGING
     Serial.print("osc servo 3 update: ");
     Serial.println(inValue);
   #endif
   moveMotorToPosition(2, inValue);
+  pixels.clear();
+  pixels.show();
 }
 
 void localise_OSCHandler(OSCMessage &msg, int addrOffset) {
@@ -223,8 +259,7 @@ void localise_OSCHandler(OSCMessage &msg, int addrOffset) {
     Serial.println(inValue);
   #endif
   if (inValue == 100){
-    pixels.setPixelColor(0, pixels.Color(150, 150, 150));
-    pixels.setBrightness(50);
+    pixels.setPixelColor(0, pixels.Color(255, 255, 255));
     pixels.show();
   } else {
     pixels.clear();
@@ -251,7 +286,6 @@ void receiveOSCsingle(){
       msgIn.route("/servo/2", servo2_OSCHandler);
       msgIn.route("/servo/3", servo3_OSCHandler);
       msgIn.route("/device1/localise", localise_OSCHandler);
-
     }
 
     //finish reading this packet:
@@ -347,10 +381,9 @@ void setup() {
   #endif
 
   pixels.begin();
-  pixels.clear();
-
+  delay(100);
   // neopixel test
-  pixels.setBrightness(10);
+  pixels.setBrightness(BRIGHTNESS);
   pixels.setPixelColor(0, pixels.Color(0, 255, 0));
   pixels.show();
 
@@ -396,7 +429,6 @@ void setup() {
 #ifdef WEB_SERVER
   server.begin();                       			   // start to listen for clients
 #endif
-
 }
 
 
@@ -422,6 +454,9 @@ void loop() {
   if (client) {
     while (client.connected()) {
       if (client.available()) {
+        pixels.setPixelColor(0, pixels.Color(0, 0, 255));
+        pixels.show();
+
         char c = client.read();
 
         //read char by char HTTP request
@@ -469,10 +504,11 @@ void loop() {
            client.print(" -> scaled by "); client.print(knob_scaling_factor);
            client.print(" to "); client.println(knob_scaled);
            client.println("<br />");
-           client.println("status led color: ");
-           // client.println(pixels.getPixelColor(0));
-
-           Serial.print("neopixel color: "); Serial.println(pixels.getPixelColor(0));
+           // client.println("status led color: ");
+           // client.print("R: "); client.print(previousPixelColor[0]);
+           // client.print(", G: "); client.print(previousPixelColor[1]);
+           // client.print(", B: "); client.print(previousPixelColor[2]);
+           // client.println("<br />");
 
            client.println("<ul>");
            for (uint8_t i = 0; i < 3; i++){
@@ -563,8 +599,9 @@ void loop() {
            }
             //clearing string for next read
             readString="";
-
          }
+         pixels.clear();
+         pixels.show();
        }
     }
   }                      			   // start to listen for clients
