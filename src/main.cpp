@@ -1,8 +1,9 @@
-#define FIRMWARE_VERSION 114
+#define FIRMWARE_VERSION 115
 #define DEVICE_ID 131         // NOTE number? IP address i.e 101, 102, 103, 104... isadora 100
 #define SERIAL_DEBUGING     // comment it out to disable serial debuging, for production i.e.
 #define SERIAL_SPEED 115200
 #define WEB_SERVER
+#define NEOPIXEL
 
 //-------- PIN MAPPING ---------------
 #define ENCODER_A 5
@@ -36,7 +37,9 @@ Teensy LC SDA 18, SCL 19
 #include <Encoder.h>
 #include <Bounce2.h>
 
-#include <Adafruit_NeoPixel.h>
+#ifdef NEOPIXEL
+  #include <Adafruit_NeoPixel.h>
+#endif
 
 // default address 0x40, default board setting
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
@@ -97,17 +100,19 @@ const unsigned int inPort = 8888;
 // array of servos position: {servo1, servo2, servo3}
 uint8_t servo_position[] = {0, 0, 0};
 
-// --- neopixel ------
-#define NUMPIXELS 1
+#ifdef NEOPIXEL
+  // --- neopixel ------
+  #define NUMPIXELS 1
 
-Adafruit_NeoPixel pixels(NUMPIXELS, PIXEL_PIN, NEO_RGB + NEO_KHZ800);
-// int previousPixelColor[] = {0,0,0};
-
+  Adafruit_NeoPixel pixels(NUMPIXELS, PIXEL_PIN, NEO_RGB + NEO_KHZ800);
+  // int previousPixelColor[] = {0,0,0};
+#endif
 // ---- web server ---
 String readString;
 
 //------------------------------ Functions -------------------------------------
 
+// #ifdef NEOPIXEL
 // void storePixelColor(){
 //   uint32_t pixelColor = pixels.getPixelColor(0);
 //   previousPixelColor[0] = pixelColor >> 16 & 0x7f;  // G
@@ -128,6 +133,7 @@ String readString;
 //   pixels.setPixelColor(0, pixels.Color(previousPixelColor[0], previousPixelColor[1], previousPixelColor[2]));
 //   pixels.show();
 // }
+// #endif
 
 int uptimeInSecs(){
   return (int)(millis()/1000);
@@ -214,42 +220,54 @@ void readEncoderPosition(){
 }
 
 void servo1_OSCHandler(OSCMessage &msg, int addrOffset) {
-  pixels.setPixelColor(0, pixels.Color(255, 255, 0));
-  pixels.show();
+  #ifdef NEOPIXEL
+    pixels.setPixelColor(0, pixels.Color(255, 255, 0));
+    pixels.show();
+  #endif
   int inValue = msg.getFloat(0);
   #ifdef SERIAL_DEBUGING
     Serial.print("osc servo 1 update: ");
     Serial.println(inValue);
   #endif
   moveMotorToPosition(0, inValue);
-  pixels.clear();
-  pixels.show();
+  #ifdef NEOPIXEL
+    pixels.clear();
+    pixels.show();
+  #endif
 }
 
 void servo2_OSCHandler(OSCMessage &msg, int addrOffset) {
-  pixels.setPixelColor(0, pixels.Color(255, 255, 0));
-  pixels.show();
+  #ifdef NEOPIXEL
+    pixels.setPixelColor(0, pixels.Color(255, 255, 0));
+    pixels.show();
+  #endif
   int inValue = msg.getFloat(0);
   #ifdef SERIAL_DEBUGING
     Serial.print("osc servo 2 update: ");
     Serial.println(inValue);
   #endif
   moveMotorToPosition(1, inValue);
-  pixels.clear();
-  pixels.show();
+  #ifdef NEOPIXEL
+    pixels.clear();
+    pixels.show();
+  #endif
 }
 
 void servo3_OSCHandler(OSCMessage &msg, int addrOffset) {
-  pixels.setPixelColor(0, pixels.Color(255, 255, 0));
-  pixels.show();
+  #ifdef NEOPIXEL
+    pixels.setPixelColor(0, pixels.Color(255, 255, 0));
+    pixels.show();
+  #endif
   int inValue = msg.getFloat(0);
   #ifdef SERIAL_DEBUGING
     Serial.print("osc servo 3 update: ");
     Serial.println(inValue);
   #endif
   moveMotorToPosition(2, inValue);
-  pixels.clear();
-  pixels.show();
+  #ifdef NEOPIXEL
+    pixels.clear();
+    pixels.show();
+  #endif
 }
 
 void localise_OSCHandler(OSCMessage &msg, int addrOffset) {
@@ -259,11 +277,15 @@ void localise_OSCHandler(OSCMessage &msg, int addrOffset) {
     Serial.println(inValue);
   #endif
   if (inValue == 100){
-    pixels.setPixelColor(0, pixels.Color(255, 255, 255));
-    pixels.show();
+    #ifdef NEOPIXEL
+      pixels.setPixelColor(0, pixels.Color(255, 255, 255));
+      pixels.show();
+    #endif
   } else {
-    pixels.clear();
-    pixels.show();
+    #ifdef NEOPIXEL
+      pixels.clear();
+      pixels.show();
+    #endif
   }
 }
 
@@ -380,13 +402,14 @@ void setup() {
     Serial.begin(SERIAL_SPEED);
   #endif
 
-  pixels.begin();
-  delay(100);
-  // neopixel test
-  pixels.setBrightness(BRIGHTNESS);
-  pixels.setPixelColor(0, pixels.Color(0, 255, 0));
-  pixels.show();
-
+  #ifdef NEOPIXEL
+    pixels.begin();
+    delay(100);
+    // neopixel test
+    pixels.setBrightness(BRIGHTNESS);
+    pixels.setPixelColor(0, pixels.Color(0, 255, 0));
+    pixels.show();
+  #endif
   //set RGB led off
   for (uint8_t i = 0; i < 3; i++){
     pinMode(rgb_led_pins[i], OUTPUT);
@@ -454,8 +477,10 @@ void loop() {
   if (client) {
     while (client.connected()) {
       if (client.available()) {
-        pixels.setPixelColor(0, pixels.Color(0, 0, 255));
-        pixels.show();
+        #ifdef NEOPIXEL
+          pixels.setPixelColor(0, pixels.Color(0, 0, 255));
+          pixels.show();
+        #endif
 
         char c = client.read();
 
@@ -590,18 +615,22 @@ void loop() {
              #ifdef SERIAL_DEBUGING
                Serial.println("Web button pressed, identifing unit with LED");
              #endif
-             pixels.setPixelColor(0, pixels.Color(150, 150, 150));
-             pixels.setBrightness(50);
-             pixels.show();
-             delay(500);
-             pixels.clear();
-             pixels.show();
+             #ifdef NEOPIXEL
+               pixels.setPixelColor(0, pixels.Color(150, 150, 150));
+               pixels.setBrightness(50);
+               pixels.show();
+               delay(500);
+               pixels.clear();
+               pixels.show();
+             #endif
            }
             //clearing string for next read
             readString="";
          }
-         pixels.clear();
-         pixels.show();
+          #ifdef NEOPIXEL
+           pixels.clear();
+           pixels.show();
+          #endif
        }
     }
   }                      			   // start to listen for clients
