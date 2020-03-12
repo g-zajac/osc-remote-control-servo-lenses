@@ -3,6 +3,7 @@
 ## About The Project
 
 This project solves a problem of remote controling non-motorized lens. Three camera lens rings: focus, aperture and zoom rings are moved by mini servos. The servos are controlled by an arduino with ethernet module. OSC protocol is used for communication with the controller over ethernet cat5. The controler receives motor position and sends back feedback OSC messages: uptime and current servo position.
+Various existing applications can be used for control i.e Isadora, TouchOSC, Qlab, MaxMSP etc.
 
 ## Concept
 ![flow](doc/flow.png)
@@ -14,6 +15,8 @@ This project solves a problem of remote controling non-motorized lens. Three cam
 * PCA9685 I2C servo driver
 * 3 x mini servo 180deg (focus, zoom, aperture)
 * rotary encoder with RGB led
+
+![prototype](doc/prototype.png)
 
 ## Built With
 * [Drakon](http://drakon-editor.sourceforge.net) - visual language for flowcahrts
