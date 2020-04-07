@@ -1,15 +1,23 @@
 #include <Arduino.h>
+#include "BasicStepperDriver.h"
 
 // Motor steps per revolution. Most steppers are 200 steps or 1.8 degrees/step
-#define MOTOR_STEPS 64
+
+// 28BYJ-48 motor runs in full step mode, each step corresponds to a rotation of 11.25°.
+// That means there are 32 steps per revolution (360°/11.25° = 32). What this means is that
+// there are actually 32*63.68395 steps per revolution = 2037.8864 ~ 2038 steps!
+
+
+// Motor steps per revolution. Most steppers are 200 steps or 1.8 degrees/step
+#define MOTOR_STEPS 32
 // Target RPM for cruise speed
-#define RPM 120
+#define RPM 120*2
 // Acceleration and deceleration values are always in FULL steps / s^2
-#define MOTOR_ACCEL 2000
-#define MOTOR_DECEL 1000
+#define MOTOR_ACCEL 1000
+#define MOTOR_DECEL 500
 
 // Microstepping mode. If you hardwired it to save pins, set to the same value here.
-#define MICROSTEPS 16
+#define MICROSTEPS 1
 
 #define DIR 4
 #define STEP 5
@@ -24,63 +32,53 @@
 #define M1 7
 DRV8834 stepper(MOTOR_STEPS, DIR, STEP, SLEEP, M0, M1);
 
-// #include "A4988.h"
-// #define MS1 10
-// #define MS2 11
-// #define MS3 12
-// A4988 stepper(MOTOR_STEPS, DIR, STEP, SLEEP, MS1, MS2, MS3);
-
-// #include "DRV8825.h"
-// #define MODE0 10
-// #define MODE1 11
-// #define MODE2 12
-// DRV8825 stepper(MOTOR_STEPS, DIR, STEP, SLEEP, MODE0, MODE1, MODE2);
-
-// #include "DRV8880.h"
-// #define M0 10
-// #define M1 11
-// #define TRQ0 6
-// #define TRQ1 7
-// DRV8880 stepper(MOTOR_STEPS, DIR, STEP, SLEEP, M0, M1, TRQ0, TRQ1);
-
-// #include "BasicStepperDriver.h" // generic
-// BasicStepperDriver stepper(DIR, STEP);
-
 void setup() {
-    Serial.begin(115200);
-
-    stepper.begin(RPM, MICROSTEPS);
+    /*
+     * Set target motor RPM.
+     */
+    stepper.begin(RPM);
     // if using enable/disable on ENABLE pin (active LOW) instead of SLEEP uncomment next line
     // stepper.setEnableActiveState(LOW);
     stepper.enable();
-    // set current level (for DRV8880 only). Valid percent values are 25, 50, 75 or 100.
+
+    // set current level (for DRV8880 only).
+    // Valid percent values are 25, 50, 75 or 100.
     // stepper.setCurrent(100);
-
-    /*
-     * Set LINEAR_SPEED (accelerated) profile.
-     */
-    stepper.setSpeedProfile(stepper.LINEAR_SPEED, MOTOR_ACCEL, MOTOR_DECEL);
-
-    Serial.println("START");
-    /*
-     * Using non-blocking mode to print out the step intervals.
-     * We could have just as easily replace everything below this line with
-     * stepper.rotate(360);
-     */
-     stepper.startRotate(360);
 }
 
 void loop() {
-    static int step = 0;
-    unsigned wait_time = stepper.nextAction();
-    if (wait_time){
-        Serial.print("  step="); Serial.print(step++);
-        Serial.print("  dt="); Serial.print(wait_time);
-        Serial.print("  rpm="); Serial.print(stepper.getCurrentRPM());
-        Serial.println();
-    } else {
-        stepper.disable();
-        Serial.println("END");
-        delay(3600000);
-    }
+    delay(1000);
+
+    /*
+     * Moving motor in full step mode is simple:
+     */
+    stepper.setMicrostep(1);  // Set microstep mode to 1:1
+
+    // One complete revolution is 360°
+    stepper.rotate(360*64/8);     // forward revolution
+    stepper.rotate(-360*64/8);    // reverse revolution
+
+    // One complete revolution is also MOTOR_STEPS steps in full step mode
+    stepper.move(MOTOR_STEPS*64/8);    // forward revolution
+    stepper.move(-MOTOR_STEPS*64/8);   // reverse revolution
+
+    /*
+     * Microstepping mode: 1, 2, 4, 8, 16 or 32 (where supported by driver)
+     * Mode 1 is full speed.
+     * Mode 32 is 32 microsteps per step.
+     * The motor should rotate just as fast (at the set RPM),
+     * but movement precision is increased, which may become visually apparent at lower RPMs.
+     */
+    stepper.setMicrostep(8);   // Set microstep mode to 1:8
+
+    // In 1:8 microstepping mode, one revolution takes 8 times as many microsteps
+    stepper.move(8 * MOTOR_STEPS*64/8);    // forward revolution
+    stepper.move(-8 * MOTOR_STEPS*64/8);   // reverse revolution
+
+    // One complete revolution is still 360° regardless of microstepping mode
+    // rotate() is easier to use than move() when no need to land on precise microstep position
+    stepper.rotate(360*64/8);
+    stepper.rotate(-360*64/8);
+
+    delay(5000);
 }
