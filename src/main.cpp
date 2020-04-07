@@ -13,8 +13,8 @@
 // Target RPM for cruise speed
 #define RPM 120*2
 // Acceleration and deceleration values are always in FULL steps / s^2
-#define MOTOR_ACCEL 1000
-#define MOTOR_DECEL 500
+#define MOTOR_ACCEL 500
+#define MOTOR_DECEL 250
 
 // Microstepping mode. If you hardwired it to save pins, set to the same value here.
 #define MICROSTEPS 1
@@ -40,7 +40,7 @@ void setup() {
     // if using enable/disable on ENABLE pin (active LOW) instead of SLEEP uncomment next line
     // stepper.setEnableActiveState(LOW);
     stepper.enable();
-
+    stepper.setSpeedProfile(stepper.LINEAR_SPEED, MOTOR_ACCEL, MOTOR_DECEL);
     // set current level (for DRV8880 only).
     // Valid percent values are 25, 50, 75 or 100.
     // stepper.setCurrent(100);
