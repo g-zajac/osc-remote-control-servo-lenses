@@ -1,50 +1,57 @@
-#include <Arduino.h>
+#define FIRMWARE_VERSION 201
 
+// device_id, numer used a position in array to get last octet of MAC and static IP
+// prototype 0, unit 1, unit 2... unit 7.
+#define DEVICE_ID 0
+
+
+//------------------------------------------------------------------------------
+#include <Arduino.h>
 #include <SPI.h>
 #include <Ethernet.h>
 
-// Enter a MAC address and IP address for your controller below.
-// The IP address will be dependent on your local network:
-byte mac[] = {
-  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED
-};
-IPAddress ip(10, 0, 10, 225);
 
-// Initialize the Ethernet server library
-// with the IP address and port you want to use
-// (port 80 is default for HTTP):
-EthernetServer server(80);
+//---------------------------- MAC & IP list ----------------------------------
+byte MAC_ARRAY[] = {0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11};
+int IP_ARRAY[] = {240, 241, 242, 243, 244, 245, 246, 247};
+//-----------------------------------------------------------------------------
+
+byte mac[] = {
+  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, MAC_ARRAY[DEVICE_ID]
+};
+IPAddress ip(10, 0, 10, IP_ARRAY[DEVICE_ID]);
+
+//------------------------------------------------------------------------------
+
+
 
 void setup() {
-  // You can use Ethernet.init(pin) to configure the CS pin
-  //Ethernet.init(10);  // Most Arduino shields
-  //Ethernet.init(5);   // MKR ETH shield
-  //Ethernet.init(0);   // Teensy 2.0
-  //Ethernet.init(20);  // Teensy++ 2.0
-  //Ethernet.init(15);  // ESP8266 with Adafruit Featherwing Ethernet
-  //Ethernet.init(33);  // ESP32 with Adafruit Featherwing Ethernet
-
-  pinMode(9, OUTPUT);
-  digitalWrite(9, LOW);    // begin reset the WIZ820io
-  pinMode(10, OUTPUT);
-  digitalWrite(10, HIGH);  // de-select WIZ820io
-  pinMode(4, OUTPUT);
-  digitalWrite(4, HIGH);   // de-select the SD Card
-  digitalWrite(9, HIGH);   // end reset pulse
-
-  Ethernet.init(10);
-
   // Open serial communications and wait for port to open:
   Serial.begin(9600);
   while (!Serial) {
     ; // wait for serial port to connect. Needed for native USB port only
   }
-  Serial.println("Ethernet WebServer Example");
 
-  // start the Ethernet connection and the server:
+//-------------------------- Initializing ethernet -----------------------------
+pinMode(9, OUTPUT);
+digitalWrite(9, LOW);    // begin reset the WIZ820io
+pinMode(10, OUTPUT);
+digitalWrite(10, HIGH);  // de-select WIZ820io
+pinMode(4, OUTPUT);
+digitalWrite(4, HIGH);   // de-select the SD Card
+digitalWrite(9, HIGH);   // end reset pulse
+
+Ethernet.init(10);
+
+  // Initialize the Ethernet server library
+  // with the IP address and port you want to use
+  // (port 80 is default for HTTP):
+  // EthernetServer server(80);
+
+  // start the Ethernet connection
   Ethernet.begin(mac, ip);
 
-  // Check for Ethernet hardware present
+  // // Check for Ethernet hardware present
   if (Ethernet.hardwareStatus() == EthernetNoHardware) {
     Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
     while (true) {
@@ -55,62 +62,24 @@ void setup() {
     Serial.println("Ethernet cable is not connected.");
   }
 
-  // start the server
-  server.begin();
-  Serial.print("server is at ");
+  Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
+  Serial.print("IP Address        : ");
   Serial.println(Ethernet.localIP());
+  Serial.print("Subnet Mask       : ");
+  Serial.println(Ethernet.subnetMask());
+  Serial.print("Default Gateway IP: ");
+  Serial.println(Ethernet.gatewayIP());
+  Serial.print("DNS Server IP     : ");
+  Serial.println(Ethernet.dnsServerIP());
+  Serial.println();
+  Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
+
+  // start the server
+  // server.begin();
+  // Serial.print("server is at ");
+  // Serial.println(Ethernet.localIP());
 }
 
-
-
 void loop() {
-  // listen for incoming clients
-  EthernetClient client = server.available();
-  if (client) {
-    Serial.println("new client");
-    // an http request ends with a blank line
-    bool currentLineIsBlank = true;
-    while (client.connected()) {
-      if (client.available()) {
-        char c = client.read();
-        Serial.write(c);
-        // if you've gotten to the end of the line (received a newline
-        // character) and the line is blank, the http request has ended,
-        // so you can send a reply
-        if (c == '\n' && currentLineIsBlank) {
-          // send a standard http response header
-          client.println("HTTP/1.1 200 OK");
-          client.println("Content-Type: text/html");
-          client.println("Connection: close");  // the connection will be closed after completion of the response
-          client.println("Refresh: 5");  // refresh the page automatically every 5 sec
-          client.println();
-          client.println("<!DOCTYPE HTML>");
-          client.println("<html>");
-          // output the value of each analog input pin
-          for (int analogChannel = 0; analogChannel < 6; analogChannel++) {
-            int sensorReading = analogRead(analogChannel);
-            client.print("analog input ");
-            client.print(analogChannel);
-            client.print(" is ");
-            client.print(sensorReading);
-            client.println("<br />");
-          }
-          client.println("</html>");
-          break;
-        }
-        if (c == '\n') {
-          // you're starting a new line
-          currentLineIsBlank = true;
-        } else if (c != '\r') {
-          // you've gotten a character on the current line
-          currentLineIsBlank = false;
-        }
-      }
-    }
-    // give the web browser time to receive the data
-    delay(1);
-    // close the connection:
-    client.stop();
-    Serial.println("client disconnected");
-  }
+
 }
