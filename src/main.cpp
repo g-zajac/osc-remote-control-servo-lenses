@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 202
+#define FIRMWARE_VERSION 204
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -36,7 +36,8 @@ void checkConnectin(){
     digitalWrite(LED_PIN, HIGH);
   }
   else if (Ethernet.linkStatus() == LinkON) {
-    Serial.println("Link status: On");
+    Serial.print("Link status: On, connected with IP: ");
+    Serial.println(Ethernet.localIP());
     digitalWrite(LED_PIN, LOW);
   }
   else if (Ethernet.linkStatus() == LinkOFF) {
@@ -51,20 +52,18 @@ void setup() {
   #ifdef SERIAL_DEBUGING
     Serial.begin(SERIAL_SPEED);
     while (!Serial) {
-      ; // wait for serial port to connect. Needed for native USB port only
+      ; //TODO remove for production, debuging only, wait for serial port to connect. Needed for native USB port only
     }
   #endif
 
   pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, HIGH);  // NOTE on boot the led inidicate power, once connects with ethernet goes off
+  digitalWrite(LED_PIN, HIGH);  //NOTE on boot the led inidicate power, once connects with ethernet goes off
 
 //-------------------------- Initializing ethernet -----------------------------
   pinMode(9, OUTPUT);
   digitalWrite(9, LOW);    // begin reset the WIZ820io
   pinMode(10, OUTPUT);
   digitalWrite(10, HIGH);  // de-select WIZ820io
-  pinMode(4, OUTPUT);
-  digitalWrite(4, HIGH);   // de-select the SD Card
   digitalWrite(9, HIGH);   // end reset pulse
 
   Ethernet.init(10);
