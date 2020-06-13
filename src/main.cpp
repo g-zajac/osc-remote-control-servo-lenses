@@ -4,6 +4,12 @@
 // prototype 0, unit 1, unit 2... unit 7.
 #define DEVICE_ID 0
 
+// Enable/Disable modules
+
+
+
+// pins definition
+#define LED_PIN 2
 
 //------------------------------------------------------------------------------
 #include <Arduino.h>
@@ -21,6 +27,23 @@ byte mac[] = {
 };
 IPAddress ip(10, 0, 10, IP_ARRAY[DEVICE_ID]);
 
+
+//***************************** Functions *************************************
+void checkConnectin(){
+  if (Ethernet.linkStatus() == Unknown) {
+    Serial.println("Link status unknown. Link status detection is only available with W5200 and W5500.");
+    digitalWrite(LED_PIN, HIGH);
+  }
+  else if (Ethernet.linkStatus() == LinkON) {
+    Serial.println("Link status: On");
+    digitalWrite(LED_PIN, LOW);
+  }
+  else if (Ethernet.linkStatus() == LinkOFF) {
+    Serial.println("Link status: Off");
+    digitalWrite(LED_PIN, HIGH);
+  }
+}
+
 //******************************************************************************
 
 void setup() {
@@ -30,16 +53,19 @@ void setup() {
     ; // wait for serial port to connect. Needed for native USB port only
   }
 
-//-------------------------- Initializing ethernet -----------------------------
-pinMode(9, OUTPUT);
-digitalWrite(9, LOW);    // begin reset the WIZ820io
-pinMode(10, OUTPUT);
-digitalWrite(10, HIGH);  // de-select WIZ820io
-pinMode(4, OUTPUT);
-digitalWrite(4, HIGH);   // de-select the SD Card
-digitalWrite(9, HIGH);   // end reset pulse
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, HIGH);  // NOTE on boot the led inidicate power, once connects with ethernet goes off
 
-Ethernet.init(10);
+//-------------------------- Initializing ethernet -----------------------------
+  pinMode(9, OUTPUT);
+  digitalWrite(9, LOW);    // begin reset the WIZ820io
+  pinMode(10, OUTPUT);
+  digitalWrite(10, HIGH);  // de-select WIZ820io
+  pinMode(4, OUTPUT);
+  digitalWrite(4, HIGH);   // de-select the SD Card
+  digitalWrite(9, HIGH);   // end reset pulse
+
+  Ethernet.init(10);
 
   // Initialize the Ethernet server library
   // with the IP address and port you want to use
@@ -58,6 +84,7 @@ Ethernet.init(10);
   }
   if (Ethernet.linkStatus() == LinkOFF) {
     Serial.println("Ethernet cable is not connected.");
+    digitalWrite(LED_PIN, HIGH);
   }
 
   Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
@@ -79,5 +106,6 @@ Ethernet.init(10);
 }
 
 void loop() {
-
+  checkConnectin();
+  delay(500);
 }
