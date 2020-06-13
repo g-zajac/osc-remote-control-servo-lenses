@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 211
+#define FIRMWARE_VERSION 212
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -37,8 +37,16 @@ IPAddress targetIP(10, 0, 10, 101);   // Isadora machine IP address
 const unsigned int targetPort = 9999;
 const unsigned int inPort = 8888;
 
+unsigned long previousMillis = 0;
+const long interval = 500;
+long uptime = 0;
+
 
 //***************************** Functions *************************************
+int uptimeInSecs(){
+  return (int)(millis()/1000);
+}
+
 void checkConnectin(){
   if (Ethernet.linkStatus() == Unknown) {
     Serial.println("Link status unknown. Link status detection is only available with W5200 and W5500.");
@@ -93,6 +101,7 @@ void receiveOSCsingle(){
 
     // route messages
     if(!msgIn.hasError()) {
+      // TODO add dynamic device number based on setting
       msgIn.route("/device1/servo/1", servo1_OSCHandler);
       msgIn.route("/device1/servo/2", servo2_OSCHandler);
       msgIn.route("/device1/servo/3", servo3_OSCHandler);
@@ -105,6 +114,28 @@ void receiveOSCsingle(){
     Udp.stop();
     Udp.begin(inPort);
   }
+}
+
+void sendOSCbundle(){
+  OSCBundle bndl;
+  bndl.add("/device1/ver").add(FIRMWARE_VERSION);
+  bndl.add("/device1/uptime").add(uptimeInSecs());
+
+  // bndl.add("/device1/servo1/position").add(servo_position[0]);
+  // bndl.add("/device1/servo2/position").add(servo_position[1]);
+  // bndl.add("/device1/servo3/position").add(servo_position[2]);
+
+  Udp.beginPacket(targetIP, targetPort);
+  bndl.send(Udp); // send the bytes to the SLIP stream
+  Udp.endPacket(); // mark the end of the OSC Packet
+  bndl.empty(); // empty the bundle to free room for a new one
+
+  //finish reading this packet:
+  Udp.flush();
+
+  //restart UDP connection to receive packets from other clients
+  Udp.stop();
+  Udp.begin(inPort);
 }
 
 //******************************************************************************
@@ -179,4 +210,11 @@ void setup() {
 
 void loop() {
   receiveOSCsingle();
+
+  unsigned long currentMillis = millis();
+  if (currentMillis - previousMillis >= interval) {
+    previousMillis = currentMillis;
+    sendOSCbundle();
+  }
+
 }
