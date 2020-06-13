@@ -1,15 +1,16 @@
-#define FIRMWARE_VERSION 201
+#define FIRMWARE_VERSION 202
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
 #define DEVICE_ID 0
 
 // Enable/Disable modules
-
-
+#define SERIAL_DEBUGING
+#define SERIAL_SPEED 115200
 
 // pins definition
 #define LED_PIN 2
+
 
 //------------------------------------------------------------------------------
 #include <Arduino.h>
@@ -47,11 +48,12 @@ void checkConnectin(){
 //******************************************************************************
 
 void setup() {
-  // Open serial communications and wait for port to open:
-  Serial.begin(9600);
-  while (!Serial) {
-    ; // wait for serial port to connect. Needed for native USB port only
-  }
+  #ifdef SERIAL_DEBUGING
+    Serial.begin(SERIAL_SPEED);
+    while (!Serial) {
+      ; // wait for serial port to connect. Needed for native USB port only
+    }
+  #endif
 
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, HIGH);  // NOTE on boot the led inidicate power, once connects with ethernet goes off
@@ -77,27 +79,33 @@ void setup() {
 
   // // Check for Ethernet hardware present
   if (Ethernet.hardwareStatus() == EthernetNoHardware) {
-    Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
+    #ifdef SERIAL_DEBUGING
+      Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
+    #endif
     while (true) {
       delay(1); // do nothing, no point running without Ethernet hardware
     }
   }
   if (Ethernet.linkStatus() == LinkOFF) {
-    Serial.println("Ethernet cable is not connected.");
+    #ifdef SERIAL_DEBUGING
+      Serial.println("Ethernet cable is not connected.");
+    #endif
     digitalWrite(LED_PIN, HIGH);
   }
 
-  Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
-  Serial.print("IP Address        : ");
-  Serial.println(Ethernet.localIP());
-  Serial.print("Subnet Mask       : ");
-  Serial.println(Ethernet.subnetMask());
-  Serial.print("Default Gateway IP: ");
-  Serial.println(Ethernet.gatewayIP());
-  Serial.print("DNS Server IP     : ");
-  Serial.println(Ethernet.dnsServerIP());
-  Serial.println();
-  Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
+  #ifdef SERIAL_DEBUGING
+    Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
+    Serial.print("IP Address        : ");
+    Serial.println(Ethernet.localIP());
+    Serial.print("Subnet Mask       : ");
+    Serial.println(Ethernet.subnetMask());
+    Serial.print("Default Gateway IP: ");
+    Serial.println(Ethernet.gatewayIP());
+    Serial.print("DNS Server IP     : ");
+    Serial.println(Ethernet.dnsServerIP());
+    Serial.println();
+    Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
+  #endif
 
   // start the server
   // server.begin();
