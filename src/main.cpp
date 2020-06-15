@@ -150,6 +150,14 @@ void setup() {
     }
   #endif
 
+  #ifdef SERIAL_DEBUGING
+    Serial.print("\r\nFirmware Ver: "); Serial.print(FIRMWARE_VERSION);
+    Serial.println(" written by Grzegorz Zajac");
+    Serial.println("Compiled: " __DATE__ ", " __TIME__ ", " __VERSION__);
+    Serial.println();
+  #endif
+
+
 //-------------------------- Initializing ethernet -----------------------------
   pinMode(9, OUTPUT);
   digitalWrite(9, LOW);    // begin reset the WIZ820io
