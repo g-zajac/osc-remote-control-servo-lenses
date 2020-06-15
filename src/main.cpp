@@ -34,6 +34,37 @@ const int IntPin = 3; /* Definition of the interrupt pin. You can change accordi
 //Class initialization with the I2C addresses*/
 i2cEncoderLibV2 Encoder(0x01); /* A0 is soldered */
 
+//Callback when the encoder is rotated
+void encoder_rotated(i2cEncoderLibV2* obj) {
+  if (obj->readStatus(i2cEncoderLibV2::RINC))
+    Serial.print("Increment: ");
+  else
+    Serial.print("Decrement: ");
+  Serial.println(obj->readCounterInt());
+  obj->writeRGBCode(0x00FF00);
+}
+
+//Callback when the encoder is pushed
+void encoder_click(i2cEncoderLibV2* obj) {
+  Serial.println("Push: ");
+  obj->writeRGBCode(0x0000FF);
+}
+
+//Callback when the encoder reach the max or min
+void encoder_thresholds(i2cEncoderLibV2* obj) {
+  if (obj->readStatus(i2cEncoderLibV2::RMAX))
+    Serial.println("Max!");
+  else
+    Serial.println("Min!");
+
+  obj->writeRGBCode(0xFF0000);
+}
+
+//Callback when the fading process finish and set the RGB led off
+void encoder_fade(i2cEncoderLibV2* obj) {
+  obj->writeRGBCode(0x000000);
+}
+
 //---------------------------- MAC & IP list ----------------------------------
 byte MAC_ARRAY[] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07};
 int IP_ARRAY[] = {240, 241, 242, 243, 244, 245, 246, 247};
@@ -195,9 +226,33 @@ void setup() {
   Encoder.writeMax((int32_t) 10); /* Set the maximum threshold*/
   Encoder.writeMin((int32_t) - 10); /* Set the minimum threshold */
   Encoder.writeStep((int32_t) 1); /* Set the step to 1*/
-  Encoder.writeInterruptConfig(0xff); /* Enable all the interrupt */
+  // Encoder.writeInterruptConfig(0xff); /* Enable all the interrupt */
+  // Encoder.writeAntibouncingPeriod(20); /* Set an anti-bouncing of 200ms */
+  // Encoder.writeDoublePushPeriod(50); /*Set a period for the double push of 500ms */
+
+  /* Configure the events */
+  Encoder.onChange = encoder_rotated;
+  Encoder.onButtonRelease = encoder_click;
+  Encoder.onMinMax = encoder_thresholds;
+  Encoder.onFadeProcess = encoder_fade;
+
+  /* Enable the I2C Encoder V2 interrupts according to the previus attached callback */
+  Encoder.autoconfigInterrupt();
+
   Encoder.writeAntibouncingPeriod(20); /* Set an anti-bouncing of 200ms */
-  Encoder.writeDoublePushPeriod(50); /*Set a period for the double push of 500ms */
+
+  /* blink the RGB LED */
+  Encoder.writeRGBCode(0xFF0000);
+  delay(250);
+  Encoder.writeRGBCode(0x00FF00);
+  delay(250);
+  Encoder.writeRGBCode(0x0000FF);
+  delay(250);
+  Encoder.writeRGBCode(0x000000);
+
+  Encoder.writeFadeRGB(3); //Fade enabled with 3ms step
+
+
 
 //-------------------------- Initializing ethernet -----------------------------
   pinMode(9, OUTPUT);
@@ -275,61 +330,10 @@ void loop() {
     sendOSCreport();
   }
 
-
+  /* Waith when the INT pin goes low */
   if (digitalRead(IntPin) == LOW) {
-    if (Encoder.updateStatus()) {
-      if (Encoder.readStatus(i2cEncoderLibV2::RINC)) {
-        Serial.print("Increment: ");
-        Serial.println(Encoder.readCounterByte());
-
-        /* Write here your code */
-
-      }
-      if (Encoder.readStatus(i2cEncoderLibV2::RDEC)) {
-        Serial.print("Decrement: ");
-        Serial.println(Encoder.readCounterByte());
-
-        /* Write here your code */
-
-      }
-
-      if (Encoder.readStatus(i2cEncoderLibV2::RMAX)) {
-        Serial.print("Maximum threshold: ");
-        Serial.println(Encoder.readCounterByte());
-
-        /* Write here your code */
-
-      }
-
-      if (Encoder.readStatus(i2cEncoderLibV2::RMIN)) {
-        Serial.print("Minimum threshold: ");
-        Serial.println(Encoder.readCounterByte());
-
-        /* Write here your code */
-
-      }
-
-      if (Encoder.readStatus(i2cEncoderLibV2::PUSHR)) {
-        Serial.println("Push button Released");
-
-        /* Write here your code */
-
-      }
-
-      if (Encoder.readStatus(i2cEncoderLibV2::PUSHP)) {
-        Serial.println("Push button Pressed");
-
-        /* Write here your code */
-
-      }
-
-      if (Encoder.readStatus(i2cEncoderLibV2::PUSHD)) {
-        Serial.println("Double push!");
-
-        /* Write here your code */
-
-      }
-    }
+    /* Check the status of the encoder and call the callback */
+    Encoder.updateStatus();
   }
 
 }
