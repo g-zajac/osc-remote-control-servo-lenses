@@ -19,6 +19,21 @@
 // #include <OSCBundle.h>
 #include <OSCMessage.h>
 
+#include <Wire.h>
+#include <i2cEncoderLibV2.h>
+
+//------------------------------ I2C encoders ----------------------------------
+// Connections:
+// - -> GND
+// + -> 5V
+// SDA -> A4
+// SCL -> A5
+// INT -> 3 temporary for tests
+
+const int IntPin = 3; /* Definition of the interrupt pin. You can change according to your board /*
+//Class initialization with the I2C addresses*/
+i2cEncoderLibV2 Encoder(0x01); /* A0 is soldered */
+
 //---------------------------- MAC & IP list ----------------------------------
 byte MAC_ARRAY[] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07};
 int IP_ARRAY[] = {240, 241, 242, 243, 244, 245, 246, 247};
@@ -157,6 +172,32 @@ void setup() {
     Serial.println();
   #endif
 
+//-------------------------- Initializing encoders -----------------------------
+  #ifdef SERIAL_DEBUGING
+    Serial.println("initializing encoders");
+  #endif
+  pinMode(IntPin, INPUT);
+  Wire.begin();
+
+  Encoder.reset();
+  Encoder.begin(
+    i2cEncoderLibV2::INT_DATA | i2cEncoderLibV2::WRAP_DISABLE
+    | i2cEncoderLibV2::DIRE_LEFT | i2cEncoderLibV2::IPUP_ENABLE
+    | i2cEncoderLibV2::RMOD_X1 | i2cEncoderLibV2::RGB_ENCODER);
+
+  // Use this in case of standard encoder!
+  //  Encoder.begin(i2cEncoderLibV2::INT_DATA | i2cEncoderLibV2::WRAP_DISABLE | i2cEncoderLibV2::DIRE_LEFT | i2cEncoderLibV2::IPUP_ENABLE | i2cEncoderLibV2::RMOD_X1 | i2cEncoderLibV2::STD_ENCODER);
+
+  // try also this!
+  //  Encoder.begin(i2cEncoderLibV2::INT_DATA | i2cEncoderLibV2::WRAP_ENABLE | i2cEncoderLibV2::DIRE_LEFT | i2cEncoderLibV2::IPUP_ENABLE | i2cEncoderLibV2::RMOD_X1 | i2cEncoderLibV2::RGB_ENCODER);
+
+  Encoder.writeCounter((int32_t) 0); /* Reset the counter value */
+  Encoder.writeMax((int32_t) 10); /* Set the maximum threshold*/
+  Encoder.writeMin((int32_t) - 10); /* Set the minimum threshold */
+  Encoder.writeStep((int32_t) 1); /* Set the step to 1*/
+  Encoder.writeInterruptConfig(0xff); /* Enable all the interrupt */
+  Encoder.writeAntibouncingPeriod(20); /* Set an anti-bouncing of 200ms */
+  Encoder.writeDoublePushPeriod(50); /*Set a period for the double push of 500ms */
 
 //-------------------------- Initializing ethernet -----------------------------
   pinMode(9, OUTPUT);
@@ -232,6 +273,63 @@ void loop() {
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
     sendOSCreport();
+  }
+
+
+  if (digitalRead(IntPin) == LOW) {
+    if (Encoder.updateStatus()) {
+      if (Encoder.readStatus(i2cEncoderLibV2::RINC)) {
+        Serial.print("Increment: ");
+        Serial.println(Encoder.readCounterByte());
+
+        /* Write here your code */
+
+      }
+      if (Encoder.readStatus(i2cEncoderLibV2::RDEC)) {
+        Serial.print("Decrement: ");
+        Serial.println(Encoder.readCounterByte());
+
+        /* Write here your code */
+
+      }
+
+      if (Encoder.readStatus(i2cEncoderLibV2::RMAX)) {
+        Serial.print("Maximum threshold: ");
+        Serial.println(Encoder.readCounterByte());
+
+        /* Write here your code */
+
+      }
+
+      if (Encoder.readStatus(i2cEncoderLibV2::RMIN)) {
+        Serial.print("Minimum threshold: ");
+        Serial.println(Encoder.readCounterByte());
+
+        /* Write here your code */
+
+      }
+
+      if (Encoder.readStatus(i2cEncoderLibV2::PUSHR)) {
+        Serial.println("Push button Released");
+
+        /* Write here your code */
+
+      }
+
+      if (Encoder.readStatus(i2cEncoderLibV2::PUSHP)) {
+        Serial.println("Push button Pressed");
+
+        /* Write here your code */
+
+      }
+
+      if (Encoder.readStatus(i2cEncoderLibV2::PUSHD)) {
+        Serial.println("Double push!");
+
+        /* Write here your code */
+
+      }
+    }
   }
 
 }
