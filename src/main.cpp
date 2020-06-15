@@ -16,7 +16,7 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include <Ethernet.h>
-#include <OSCBundle.h>
+// #include <OSCBundle.h>
 #include <OSCMessage.h>
 
 //---------------------------- MAC & IP list ----------------------------------
