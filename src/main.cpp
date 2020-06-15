@@ -1,8 +1,8 @@
-#define FIRMWARE_VERSION 212
+#define FIRMWARE_VERSION 213
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
-#define DEVICE_ID 0
+#define DEVICE_ID 1
 
 // Enable/Disable modules
 #define SERIAL_DEBUGING
@@ -34,12 +34,14 @@ EthernetUDP Udp;
 
 // OSC destination address
 IPAddress targetIP(10, 0, 10, 101);   // Isadora machine IP address
-const unsigned int targetPort = 9999;
-const unsigned int inPort = 8888;
+const unsigned int destPort = 9999;          // remote port to receive OSC
+const unsigned int localPort = 8888;        // local port to listen for OSC packets
 
 unsigned long previousMillis = 0;
 const long interval = 500;
 long uptime = 0;
+
+char osc_prefix[16];                  // device OSC prefix message, i.e /camera1
 
 
 //***************************** Functions *************************************
@@ -47,6 +49,7 @@ int uptimeInSecs(){
   return (int)(millis()/1000);
 }
 
+// TODO remove, redundant, no led indicator? link can be checked on ether socket
 void checkConnectin(){
   if (Ethernet.linkStatus() == Unknown) {
     Serial.println("Link status unknown. Link status detection is only available with W5200 and W5500.");
@@ -112,30 +115,26 @@ void receiveOSCsingle(){
     Udp.flush();
     //restart UDP connection to receive packets from other clients
     Udp.stop();
-    Udp.begin(inPort);
+    Udp.begin(localPort);
   }
 }
 
-void sendOSCbundle(){
-  OSCBundle bndl;
-  bndl.add("/device1/ver").add(FIRMWARE_VERSION);
-  bndl.add("/device1/uptime").add(uptimeInSecs());
+void sendOSCmessage(char* name, int value){
+  char message_osc_header[16];
+  message_osc_header[0] = {0};
+  strcat(message_osc_header, osc_prefix);
+  strcat(message_osc_header, name);
+  OSCMessage message(message_osc_header);
+  message.add(value);
+  Udp.beginPacket(targetIP, destPort);
+  message.send(Udp);
+  Udp.endPacket();
+  message.empty();
+}
 
-  // bndl.add("/device1/servo1/position").add(servo_position[0]);
-  // bndl.add("/device1/servo2/position").add(servo_position[1]);
-  // bndl.add("/device1/servo3/position").add(servo_position[2]);
-
-  Udp.beginPacket(targetIP, targetPort);
-  bndl.send(Udp); // send the bytes to the SLIP stream
-  Udp.endPacket(); // mark the end of the OSC Packet
-  bndl.empty(); // empty the bundle to free room for a new one
-
-  //finish reading this packet:
-  Udp.flush();
-
-  //restart UDP connection to receive packets from other clients
-  Udp.stop();
-  Udp.begin(inPort);
+void sendOSCreport(){
+  sendOSCmessage("/ver", FIRMWARE_VERSION);
+  sendOSCmessage("/uptime", uptimeInSecs());
 }
 
 //******************************************************************************
@@ -150,7 +149,6 @@ void setup() {
       ; //TODO remove for production, debuging only, wait for serial port to connect. Needed for native USB port only
     }
   #endif
-
 
 //-------------------------- Initializing ethernet -----------------------------
   pinMode(9, OUTPUT);
@@ -185,6 +183,14 @@ void setup() {
     digitalWrite(LED_PIN, HIGH);
   }
 
+  //Create OSC message header with unit number
+  osc_prefix[0] = {0};
+  strcat(osc_prefix, "/camera");
+
+  char buf[8];
+  sprintf(buf, "%d", DEVICE_ID);
+  strcat(osc_prefix, buf);
+
   #ifdef SERIAL_DEBUGING
     Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
     Serial.print("IP Address        : ");
@@ -196,6 +202,9 @@ void setup() {
     Serial.print("DNS Server IP     : ");
     Serial.println(Ethernet.dnsServerIP());
     Serial.println();
+    Serial.print("OSC prefix: ");
+    Serial.println(osc_prefix);
+    Serial.println();
     Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
   #endif
 
@@ -205,7 +214,7 @@ void setup() {
   // Serial.println(Ethernet.localIP());
 
   //TODO add check connected status if
-  Udp.begin(inPort);
+  Udp.begin(localPort);
 }
 
 void loop() {
@@ -214,7 +223,7 @@ void loop() {
   unsigned long currentMillis = millis();
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
-    sendOSCbundle();
+    sendOSCreport();
   }
 
 }
