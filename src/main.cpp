@@ -1,15 +1,21 @@
-#define FIRMWARE_VERSION 213
+#define FIRMWARE_VERSION 214
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
-#define DEVICE_ID 1
+
+// ****************
+#define DEVICE_ID 0
+// ****************
+
 
 // Enable/Disable modules
 #define SERIAL_DEBUGING
-#define SERIAL_SPEED 115200
 
 // pins definition
 #define LED_PIN 2
+
+// Parameters
+#define SERIAL_SPEED 115200
 
 
 //------------------------------------------------------------------------------
@@ -65,6 +71,7 @@ void encoder_fade(i2cEncoderLibV2* obj) {
   obj->writeRGBCode(0x000000);
 }
 
+
 //---------------------------- MAC & IP list ----------------------------------
 byte MAC_ARRAY[] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07};
 int IP_ARRAY[] = {240, 241, 242, 243, 244, 245, 246, 247};
@@ -75,7 +82,7 @@ byte mac[] = {
 };
 IPAddress ip(10, 0, 10, IP_ARRAY[DEVICE_ID]);
 
-// Networking / UDP Setup for OSC
+//----------------------------- Setup for OSC ----------------------------------
 EthernetUDP Udp;
 
 // OSC destination address
@@ -90,26 +97,10 @@ long uptime = 0;
 char osc_prefix[16];                  // device OSC prefix message, i.e /camera1
 
 
+
 //***************************** Functions *************************************
 int uptimeInSecs(){
   return (int)(millis()/1000);
-}
-
-// TODO remove, redundant, no led indicator? link can be checked on ether socket
-void checkConnectin(){
-  if (Ethernet.linkStatus() == Unknown) {
-    Serial.println("Link status unknown. Link status detection is only available with W5200 and W5500.");
-    digitalWrite(LED_PIN, HIGH);
-  }
-  else if (Ethernet.linkStatus() == LinkON) {
-    Serial.print("Link status: On, connected with IP: ");
-    Serial.println(Ethernet.localIP());
-    digitalWrite(LED_PIN, LOW);
-  }
-  else if (Ethernet.linkStatus() == LinkOFF) {
-    Serial.println("Link status: Off");
-    digitalWrite(LED_PIN, HIGH);
-  }
 }
 
 void servo1_OSCHandler(OSCMessage &msg, int addrOffset) {
@@ -143,7 +134,6 @@ void receiveOSCsingle(){
 
   if( (size = Udp.parsePacket())>0)
   {
-
     //while((size = Udp.available()) > 0)
     while(size--)
       msgIn.fill(Udp.read());
@@ -226,9 +216,6 @@ void setup() {
   Encoder.writeMax((int32_t) 10); /* Set the maximum threshold*/
   Encoder.writeMin((int32_t) - 10); /* Set the minimum threshold */
   Encoder.writeStep((int32_t) 1); /* Set the step to 1*/
-  // Encoder.writeInterruptConfig(0xff); /* Enable all the interrupt */
-  // Encoder.writeAntibouncingPeriod(20); /* Set an anti-bouncing of 200ms */
-  // Encoder.writeDoublePushPeriod(50); /*Set a period for the double push of 500ms */
 
   /* Configure the events */
   Encoder.onChange = encoder_rotated;
@@ -251,7 +238,6 @@ void setup() {
   Encoder.writeRGBCode(0x000000);
 
   Encoder.writeFadeRGB(3); //Fade enabled with 3ms step
-
 
 
 //-------------------------- Initializing ethernet -----------------------------
@@ -295,6 +281,7 @@ void setup() {
   sprintf(buf, "%d", DEVICE_ID);
   strcat(osc_prefix, buf);
 
+
   #ifdef SERIAL_DEBUGING
     Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
     Serial.print("IP Address        : ");
@@ -312,12 +299,7 @@ void setup() {
     Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
   #endif
 
-  // start the server
-  // server.begin();
-  // Serial.print("server is at ");
-  // Serial.println(Ethernet.localIP());
-
-  //TODO add check connected status if
+  //TODO test osc after loosing connection and reconnecting
   Udp.begin(localPort);
 }
 
@@ -330,7 +312,7 @@ void loop() {
     sendOSCreport();
   }
 
-  /* Waith when the INT pin goes low */
+  /* Wait when the INT pin goes low */
   if (digitalRead(IntPin) == LOW) {
     /* Check the status of the encoder and call the callback */
     Encoder.updateStatus();
