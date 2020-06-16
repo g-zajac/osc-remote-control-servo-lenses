@@ -260,13 +260,14 @@ void setup() {
 
   Encoder.writeFadeRGB(3); //Fade enabled with 3ms step
 
+
 //-------------------------- Initializing steppers -----------------------------
   #ifdef SERIAL_DEBUGING
     Serial.println("initializing steppers");
   #endif
 
-  stepper1.setMaxSpeed(400);
-  stepper1.setAcceleration(50);
+  stepper1.setMaxSpeed(500);
+  stepper1.setAcceleration(200);
   stepper1.moveTo(2038);
 
 
@@ -340,6 +341,7 @@ void loop() {
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
     sendOSCreport();
+    Serial.println(stepper1.currentPosition());
   }
 
   /* Wait when the INT pin goes low */
