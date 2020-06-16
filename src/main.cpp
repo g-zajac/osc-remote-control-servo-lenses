@@ -1,15 +1,21 @@
-#define FIRMWARE_VERSION 213
+#define FIRMWARE_VERSION 214
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
-#define DEVICE_ID 1
+
+// ****************
+#define DEVICE_ID 0
+// ****************
+
 
 // Enable/Disable modules
 #define SERIAL_DEBUGING
-#define SERIAL_SPEED 115200
 
 // pins definition
 #define LED_PIN 2
+
+// Parameters
+#define SERIAL_SPEED 115200
 
 
 //------------------------------------------------------------------------------
@@ -18,6 +24,53 @@
 #include <Ethernet.h>
 // #include <OSCBundle.h>
 #include <OSCMessage.h>
+
+#include <Wire.h>
+#include <i2cEncoderLibV2.h>
+
+//------------------------------ I2C encoders ----------------------------------
+// Connections:
+// - -> GND
+// + -> 5V
+// SDA -> A4
+// SCL -> A5
+// INT -> 3 temporary for tests
+
+const int IntPin = 3; /* Definition of the interrupt pin. You can change according to your board /*
+//Class initialization with the I2C addresses*/
+i2cEncoderLibV2 Encoder(0x01); /* A0 is soldered */
+
+//Callback when the encoder is rotated
+void encoder_rotated(i2cEncoderLibV2* obj) {
+  if (obj->readStatus(i2cEncoderLibV2::RINC))
+    Serial.print("Increment: ");
+  else
+    Serial.print("Decrement: ");
+  Serial.println(obj->readCounterInt());
+  obj->writeRGBCode(0x00FF00);
+}
+
+//Callback when the encoder is pushed
+void encoder_click(i2cEncoderLibV2* obj) {
+  Serial.println("Push: ");
+  obj->writeRGBCode(0x0000FF);
+}
+
+//Callback when the encoder reach the max or min
+void encoder_thresholds(i2cEncoderLibV2* obj) {
+  if (obj->readStatus(i2cEncoderLibV2::RMAX))
+    Serial.println("Max!");
+  else
+    Serial.println("Min!");
+
+  obj->writeRGBCode(0xFF0000);
+}
+
+//Callback when the fading process finish and set the RGB led off
+void encoder_fade(i2cEncoderLibV2* obj) {
+  obj->writeRGBCode(0x000000);
+}
+
 
 //---------------------------- MAC & IP list ----------------------------------
 byte MAC_ARRAY[] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07};
@@ -29,7 +82,7 @@ byte mac[] = {
 };
 IPAddress ip(10, 0, 10, IP_ARRAY[DEVICE_ID]);
 
-// Networking / UDP Setup for OSC
+//----------------------------- Setup for OSC ----------------------------------
 EthernetUDP Udp;
 
 // OSC destination address
@@ -44,26 +97,10 @@ long uptime = 0;
 char osc_prefix[16];                  // device OSC prefix message, i.e /camera1
 
 
+
 //***************************** Functions *************************************
 int uptimeInSecs(){
   return (int)(millis()/1000);
-}
-
-// TODO remove, redundant, no led indicator? link can be checked on ether socket
-void checkConnectin(){
-  if (Ethernet.linkStatus() == Unknown) {
-    Serial.println("Link status unknown. Link status detection is only available with W5200 and W5500.");
-    digitalWrite(LED_PIN, HIGH);
-  }
-  else if (Ethernet.linkStatus() == LinkON) {
-    Serial.print("Link status: On, connected with IP: ");
-    Serial.println(Ethernet.localIP());
-    digitalWrite(LED_PIN, LOW);
-  }
-  else if (Ethernet.linkStatus() == LinkOFF) {
-    Serial.println("Link status: Off");
-    digitalWrite(LED_PIN, HIGH);
-  }
 }
 
 void servo1_OSCHandler(OSCMessage &msg, int addrOffset) {
@@ -97,7 +134,6 @@ void receiveOSCsingle(){
 
   if( (size = Udp.parsePacket())>0)
   {
-
     //while((size = Udp.available()) > 0)
     while(size--)
       msgIn.fill(Udp.read());
@@ -157,6 +193,52 @@ void setup() {
     Serial.println();
   #endif
 
+//-------------------------- Initializing encoders -----------------------------
+  #ifdef SERIAL_DEBUGING
+    Serial.println("initializing encoders");
+  #endif
+  pinMode(IntPin, INPUT);
+  Wire.begin();
+
+  Encoder.reset();
+  Encoder.begin(
+    i2cEncoderLibV2::INT_DATA | i2cEncoderLibV2::WRAP_DISABLE
+    | i2cEncoderLibV2::DIRE_LEFT | i2cEncoderLibV2::IPUP_ENABLE
+    | i2cEncoderLibV2::RMOD_X1 | i2cEncoderLibV2::RGB_ENCODER);
+
+  // Use this in case of standard encoder!
+  //  Encoder.begin(i2cEncoderLibV2::INT_DATA | i2cEncoderLibV2::WRAP_DISABLE | i2cEncoderLibV2::DIRE_LEFT | i2cEncoderLibV2::IPUP_ENABLE | i2cEncoderLibV2::RMOD_X1 | i2cEncoderLibV2::STD_ENCODER);
+
+  // try also this!
+  //  Encoder.begin(i2cEncoderLibV2::INT_DATA | i2cEncoderLibV2::WRAP_ENABLE | i2cEncoderLibV2::DIRE_LEFT | i2cEncoderLibV2::IPUP_ENABLE | i2cEncoderLibV2::RMOD_X1 | i2cEncoderLibV2::RGB_ENCODER);
+
+  Encoder.writeCounter((int32_t) 0); /* Reset the counter value */
+  Encoder.writeMax((int32_t) 10); /* Set the maximum threshold*/
+  Encoder.writeMin((int32_t) - 10); /* Set the minimum threshold */
+  Encoder.writeStep((int32_t) 1); /* Set the step to 1*/
+
+  /* Configure the events */
+  Encoder.onChange = encoder_rotated;
+  Encoder.onButtonRelease = encoder_click;
+  Encoder.onMinMax = encoder_thresholds;
+  Encoder.onFadeProcess = encoder_fade;
+
+  /* Enable the I2C Encoder V2 interrupts according to the previus attached callback */
+  Encoder.autoconfigInterrupt();
+
+  Encoder.writeAntibouncingPeriod(20); /* Set an anti-bouncing of 200ms */
+
+  /* blink the RGB LED */
+  Encoder.writeRGBCode(0xFF0000);
+  delay(250);
+  Encoder.writeRGBCode(0x00FF00);
+  delay(250);
+  Encoder.writeRGBCode(0x0000FF);
+  delay(250);
+  Encoder.writeRGBCode(0x000000);
+
+  Encoder.writeFadeRGB(3); //Fade enabled with 3ms step
+
 
 //-------------------------- Initializing ethernet -----------------------------
   pinMode(9, OUTPUT);
@@ -199,6 +281,7 @@ void setup() {
   sprintf(buf, "%d", DEVICE_ID);
   strcat(osc_prefix, buf);
 
+
   #ifdef SERIAL_DEBUGING
     Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
     Serial.print("IP Address        : ");
@@ -216,12 +299,7 @@ void setup() {
     Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
   #endif
 
-  // start the server
-  // server.begin();
-  // Serial.print("server is at ");
-  // Serial.println(Ethernet.localIP());
-
-  //TODO add check connected status if
+  //TODO test osc after loosing connection and reconnecting
   Udp.begin(localPort);
 }
 
@@ -232,6 +310,12 @@ void loop() {
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
     sendOSCreport();
+  }
+
+  /* Wait when the INT pin goes low */
+  if (digitalRead(IntPin) == LOW) {
+    /* Check the status of the encoder and call the callback */
+    Encoder.updateStatus();
   }
 
 }
