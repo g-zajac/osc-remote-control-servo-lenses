@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 214
+#define FIRMWARE_VERSION 215
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -27,6 +27,27 @@
 
 #include <Wire.h>
 #include <i2cEncoderLibV2.h>
+
+#include <AccelStepper.h>
+
+
+//------------------------------ Stepper motors --------------------------------
+
+// 28BYJ-48 motor runs in full step mode, each step corresponds to a rotation of 11.25°.
+// That means there are 32 steps per revolution (360°/11.25° = 32). What this means is that
+// there are actually 32*63.68395 steps per revolution = 2037.8864 ~ 2038 steps!
+
+// Define a stepper and the pins it will use
+// AccelStepper stepper; // Defaults to AccelStepper::FULL4WIRE (4 pins) on 2, 3, 4, 5
+
+
+// Motor one bipolar, converted 28BYJ-48 with DRV8834 driver
+int motor1DirPin = 4;
+int motor1StepPin = 5;
+
+//set up the accelStepper intance
+//the "1" tells it we are using a driver
+AccelStepper stepper1(AccelStepper::DRIVER, motor1StepPin, motor1DirPin);
 
 //------------------------------ I2C encoders ----------------------------------
 // Connections:
@@ -239,6 +260,15 @@ void setup() {
 
   Encoder.writeFadeRGB(3); //Fade enabled with 3ms step
 
+//-------------------------- Initializing steppers -----------------------------
+  #ifdef SERIAL_DEBUGING
+    Serial.println("initializing steppers");
+  #endif
+
+  stepper1.setMaxSpeed(400);
+  stepper1.setAcceleration(50);
+  stepper1.moveTo(2038);
+
 
 //-------------------------- Initializing ethernet -----------------------------
   pinMode(9, OUTPUT);
@@ -318,4 +348,9 @@ void loop() {
     Encoder.updateStatus();
   }
 
+  // If at the end of travel go to the other end
+  if (stepper1.distanceToGo() == 0)
+    stepper1.moveTo(-stepper1.currentPosition());
+
+  stepper1.run();
 }
