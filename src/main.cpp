@@ -57,37 +57,43 @@ AccelStepper stepper1(AccelStepper::DRIVER, motor1StepPin, motor1DirPin);
 // SCL -> A5
 // INT -> 3 temporary for tests
 
-const int IntPin = 3; /* Definition of the interrupt pin. You can change according to your board /*
-//Class initialization with the I2C addresses*/
-i2cEncoderLibV2 Encoder(0x01); /* A0 is soldered */
+#define ENCODER_N 3 //Number limit of the encoder
+const int IntPin = 3; // Definition of the interrupt pin. You can change according to your board
+
+//Class initialization with the I2C addresses
+i2cEncoderLibV2 RGBEncoder[ENCODER_N] = { i2cEncoderLibV2(0x01),
+                                          i2cEncoderLibV2(0x02),
+                                          i2cEncoderLibV2(0x03),
+                                        };
+uint8_t encoder_status, i;
 
 //Callback when the encoder is rotated
 void encoder_rotated(i2cEncoderLibV2* obj) {
   if (obj->readStatus(i2cEncoderLibV2::RINC))
-    Serial.print("Increment: ");
+    Serial.print("Increment ");
   else
-    Serial.print("Decrement: ");
+    Serial.print("Decrement ");
+  Serial.print(obj->id);
+  Serial.print(": ");
   Serial.println(obj->readCounterInt());
   obj->writeRGBCode(0x00FF00);
 }
 
-//Callback when the encoder is pushed
 void encoder_click(i2cEncoderLibV2* obj) {
-  Serial.println("Push: ");
+  Serial.print("Push: ");
+  Serial.println(obj->id);
   obj->writeRGBCode(0x0000FF);
 }
 
-//Callback when the encoder reach the max or min
 void encoder_thresholds(i2cEncoderLibV2* obj) {
   if (obj->readStatus(i2cEncoderLibV2::RMAX))
-    Serial.println("Max!");
+    Serial.print("Max: ");
   else
-    Serial.println("Min!");
-
+    Serial.print("Min: ");
+  Serial.println(obj->id);
   obj->writeRGBCode(0xFF0000);
 }
 
-//Callback when the fading process finish and set the RGB led off
 void encoder_fade(i2cEncoderLibV2* obj) {
   obj->writeRGBCode(0x000000);
 }
@@ -218,47 +224,42 @@ void setup() {
   #ifdef SERIAL_DEBUGING
     Serial.println("initializing encoders");
   #endif
+  uint8_t enc_cnt;
+
   pinMode(IntPin, INPUT);
   Wire.begin();
+  //Reset of all the encoder ìs
+  for (enc_cnt = 0; enc_cnt < ENCODER_N; enc_cnt++) {
+    RGBEncoder[enc_cnt].reset();
+  }
 
-  Encoder.reset();
-  Encoder.begin(
-    i2cEncoderLibV2::INT_DATA | i2cEncoderLibV2::WRAP_DISABLE
-    | i2cEncoderLibV2::DIRE_LEFT | i2cEncoderLibV2::IPUP_ENABLE
-    | i2cEncoderLibV2::RMOD_X1 | i2cEncoderLibV2::RGB_ENCODER);
+  // Initialization of the encoders
+  for (enc_cnt = 0; enc_cnt < ENCODER_N; enc_cnt++) {
+    RGBEncoder[enc_cnt].begin(
+      i2cEncoderLibV2::INT_DATA | i2cEncoderLibV2::WRAP_DISABLE
+      | i2cEncoderLibV2::DIRE_RIGHT
+      | i2cEncoderLibV2::IPUP_ENABLE
+      | i2cEncoderLibV2::RMOD_X1
+      | i2cEncoderLibV2::RGB_ENCODER);
+    RGBEncoder[enc_cnt].writeCounter((int32_t) 0); //Reset of the CVAL register
+    RGBEncoder[enc_cnt].writeMax((int32_t) 50); //Set the maximum threshold to 50
+    RGBEncoder[enc_cnt].writeMin((int32_t) 0); //Set the minimum threshold to 0
+    RGBEncoder[enc_cnt].writeStep((int32_t) 1); //The step at every encoder click is 1
+    RGBEncoder[enc_cnt].writeRGBCode(0);
+    RGBEncoder[enc_cnt].writeFadeRGB(3); //Fade enabled with 3ms step
+    RGBEncoder[enc_cnt].writeAntibouncingPeriod(25); //250ms of debouncing
+    RGBEncoder[enc_cnt].writeDoublePushPeriod(0); //Set the double push period to 500ms
 
-  // Use this in case of standard encoder!
-  //  Encoder.begin(i2cEncoderLibV2::INT_DATA | i2cEncoderLibV2::WRAP_DISABLE | i2cEncoderLibV2::DIRE_LEFT | i2cEncoderLibV2::IPUP_ENABLE | i2cEncoderLibV2::RMOD_X1 | i2cEncoderLibV2::STD_ENCODER);
+    /* Configure the events */
+    RGBEncoder[enc_cnt].onChange = encoder_rotated;
+    RGBEncoder[enc_cnt].onButtonRelease = encoder_click;
+    RGBEncoder[enc_cnt].onMinMax = encoder_thresholds;
+    RGBEncoder[enc_cnt].onFadeProcess = encoder_fade;
 
-  // try also this!
-  //  Encoder.begin(i2cEncoderLibV2::INT_DATA | i2cEncoderLibV2::WRAP_ENABLE | i2cEncoderLibV2::DIRE_LEFT | i2cEncoderLibV2::IPUP_ENABLE | i2cEncoderLibV2::RMOD_X1 | i2cEncoderLibV2::RGB_ENCODER);
-
-  Encoder.writeCounter((int32_t) 0); /* Reset the counter value */
-  Encoder.writeMax((int32_t) 10); /* Set the maximum threshold*/
-  Encoder.writeMin((int32_t) - 10); /* Set the minimum threshold */
-  Encoder.writeStep((int32_t) 1); /* Set the step to 1*/
-
-  /* Configure the events */
-  Encoder.onChange = encoder_rotated;
-  Encoder.onButtonRelease = encoder_click;
-  Encoder.onMinMax = encoder_thresholds;
-  Encoder.onFadeProcess = encoder_fade;
-
-  /* Enable the I2C Encoder V2 interrupts according to the previus attached callback */
-  Encoder.autoconfigInterrupt();
-
-  Encoder.writeAntibouncingPeriod(20); /* Set an anti-bouncing of 200ms */
-
-  /* blink the RGB LED */
-  Encoder.writeRGBCode(0xFF0000);
-  delay(250);
-  Encoder.writeRGBCode(0x00FF00);
-  delay(250);
-  Encoder.writeRGBCode(0x0000FF);
-  delay(250);
-  Encoder.writeRGBCode(0x000000);
-
-  Encoder.writeFadeRGB(3); //Fade enabled with 3ms step
+    /* Enable the I2C Encoder V2 interrupts according to the previus attached callback */
+    RGBEncoder[enc_cnt].autoconfigInterrupt();
+    RGBEncoder[enc_cnt].id = enc_cnt;
+  }
 
 
 //-------------------------- Initializing steppers -----------------------------
@@ -344,11 +345,19 @@ void loop() {
     Serial.println(stepper1.currentPosition());
   }
 
-  /* Wait when the INT pin goes low */
+
+  uint8_t enc_cnt;
+
   if (digitalRead(IntPin) == LOW) {
-    /* Check the status of the encoder and call the callback */
-    Encoder.updateStatus();
+    //Interrupt from the encoders, start to scan the encoder matrix
+    for (enc_cnt = 0; enc_cnt < ENCODER_N; enc_cnt++) {
+      if (digitalRead(IntPin) == HIGH) { //If the interrupt pin return high, exit from the encoder scan
+        break;
+      }
+      RGBEncoder[enc_cnt].updateStatus();
+    }
   }
+
 
   // If at the end of travel go to the other end
   if (stepper1.distanceToGo() == 0)
