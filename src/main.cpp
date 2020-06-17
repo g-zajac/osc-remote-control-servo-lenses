@@ -12,7 +12,7 @@
 #define SERIAL_DEBUGING
 
 // pins definition
-#define LED_PIN 2
+#define LED_PIN 6
 
 // Parameters
 #define SERIAL_SPEED 115200
@@ -42,8 +42,8 @@
 
 
 // Motor one bipolar, converted 28BYJ-48 with DRV8834 driver
-int motor1DirPin = 4;
-int motor1StepPin = 5;
+int motor1DirPin = 33;
+int motor1StepPin = 34;
 
 //set up the accelStepper intance
 //the "1" tells it we are using a driver
@@ -58,7 +58,7 @@ AccelStepper stepper1(AccelStepper::DRIVER, motor1StepPin, motor1DirPin);
 // INT -> 3 temporary for tests
 
 #define ENCODER_N 3 //Number limit of the encoder
-const int IntPin = 3; // Definition of the interrupt pin. You can change according to your board
+const int IntPin = 17; // Definition of the interrupt pin. You can change according to your board
 
 //Class initialization with the I2C addresses
 i2cEncoderLibV2 RGBEncoder[ENCODER_N] = { i2cEncoderLibV2(0x01),
