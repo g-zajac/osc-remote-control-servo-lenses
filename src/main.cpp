@@ -1,132 +1,401 @@
-#define FIRMWARE_VERSION 116
-#define DEVICE_ID 131         // NOTE number? IP address i.e 101, 102, 103, 104... isadora 100
-#define SERIAL_DEBUGING     // comment it out to disable serial debuging, for production i.e.
+#define FIRMWARE_VERSION 220
+
+// device_id, numer used a position in array to get last octet of MAC and static IP
+// prototype 0, unit 1, unit 2... unit 7.
+
+// ****************
+#define DEVICE_ID 0
+// ****************
+
+// Enable/Disable modules
+#define SERIAL_DEBUGING
+
+//-------------------------------- pins definition -----------------------------
+#define LED_PIN 6
+
+// Focus
+#define MOTOR1DIR_PIN 33
+#define MOTOR1STEP_PIN 34
+
+// Aperture
+#define MOTOR2DIR_PIN 39
+#define MOTOR2STEP_PIN 40
+
+// Zoom
+#define MOTOR3DIR_PIN 20
+#define MOTOR3STEP_PIN 21
+
+#define ENCODER_N 3 //Number limit of the encoder
+#define INT_PIN 17 // Definition of the encoder interrupt pin
+
+
+//-------------------------------- settings ------------------------------------
 #define SERIAL_SPEED 115200
-#define WEB_SERVER          // comment out to disable webserver
-#define NEOPIXEL            // comment out to disable status led (neopixel)
 
-//-------- PIN MAPPING ---------------
-#define ENCODER_A 6
-#define ENCODER_B 5
-#define KNOB_BUTTON_PIN 4
+// encoders settings
+#define potStep 1
+#define potMax 100
 
-#define ENCODER_LED_R 7
-#define ENCODER_LED_G 8
-#define ENCODER_LED_B 9
 
-#define PIXEL_PIN 3
-#define BRIGHTNESS 10
-
-/*
-I2C
-Teensy LC SDA 18, SCL 19
-*/
-//---------------------------------
-
+//------------------------------------------------------------------------------
 #include <Arduino.h>
+#include <SPI.h>
+#include <Ethernet.h>
 
-#include <UIPEthernet.h> // Used for Ethernet
-
-#include <OSCBundle.h>
 #include <OSCMessage.h>
 
-// PCA9685 16-channel PWM servo driver
 #include <Wire.h>
-#include <Adafruit_PWMServoDriver.h>
+#include <i2cEncoderLibV2.h>
 
-#include <Encoder.h>
-#include <Bounce2.h>
-
-#ifdef NEOPIXEL
-  #include <Adafruit_NeoPixel.h>
-#endif
-
-// default address 0x40, default board setting
-Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
-
-/*
-MG996R
-dead band: 0.050ms
-period 10ms / 50Hz
-1ms - 2ms
-*/
-
-#define MIN_PULSE_WIDTH  550 // This is the rounded 'minimum' microsecond length based on the minimum pulse of 150
-#define MAX_PULSE_WIDTH  2600 // This is the rounded 'maximum' microsecond length based on the maximum pulse of 600
-#define SERVO_FREQ 50 // Analog servos run at ~50 Hz updates
+#include <AccelStepper.h>
 
 
-// Ethernet MAC address - must be unique on your network - MAC Reads T4A001 in hex (unique in your network)
-byte mac[] = { 0x54, 0x34, 0x41, 0x30, 0x30, 0x31 };
-IPAddress IP(10,0,10,DEVICE_ID);
+//------------------------------ Stepper motors --------------------------------
+// Bipolar motor, converted 28BYJ-48 with DRV8834 driver
+// 28BYJ-48 motor runs in full step mode, each step corresponds to a rotation of 11.25°.
+// That means there are 32 steps per revolution (360°/11.25° = 32). What this means is that
+// there are actually 32*63.68395 steps per revolution = 2037.8864 ~ 2038 steps!
 
-/*
-Rotary encoder wireing
-[connected to arduino pin]
-[5](1)   A  1         4 -  - brown (4)[16]
-[G](2)   C  2         5 -  -
-[6](3)   B  3    X    6 - Switch -  (5)[15]
-                          7 -
-                          8 - Common GND -  (6)[GND]
-*/
-Encoder knob(ENCODER_A, ENCODER_B);
-int knob_position  = -999;
-//*****************************************************************************************
-const uint8_t knob_scaling_factor = 12;  // number of encoder ticks per 0-180 servo movment
-//*****************************************************************************************
-uint8_t knob_scaled;
-unsigned long previousMillis = 0;
-const long interval = 500;
-long uptime = 0;
+// Define a stepper and the pins it will use
+// AccelStepper stepper; // Defaults to AccelStepper::FULL4WIRE (4 pins) on 2, 3, 4, 5
 
-Bounce debouncer = Bounce(); // Initiate a Bounce object
-uint8_t selected_servo = 0;
+//set up the accelStepper intance
+//the "1" tells it we are using a driver
+AccelStepper stepper1(AccelStepper::DRIVER, MOTOR1STEP_PIN, MOTOR1DIR_PIN);
+AccelStepper stepper2(AccelStepper::DRIVER, MOTOR2STEP_PIN, MOTOR2DIR_PIN);
+AccelStepper stepper3(AccelStepper::DRIVER, MOTOR3STEP_PIN, MOTOR3DIR_PIN);
 
-// define RGB led pins     R G B
-const uint8_t rgb_led_pins[] = {ENCODER_LED_R, ENCODER_LED_G, ENCODER_LED_B};
+//------------------------------ I2C encoders ----------------------------------
+// Connections:
+// - -> GND
+// + -> 5V
+// SDA -> A4
+// SCL -> A5
+// INT -> 3 temporary for tests
 
-// Networking / UDP Setup
+//Class initialization with the I2C addresses
+i2cEncoderLibV2 RGBEncoder[ENCODER_N] = { i2cEncoderLibV2(0x01),
+                                          i2cEncoderLibV2(0x02),
+                                          i2cEncoderLibV2(0x03),
+                                        };
+uint8_t encoder_status, i;
+
+//---------------------------- MAC & IP list ----------------------------------
+// Change #define DEVICE_ID to a number from 0 to 7 on top of the code to
+// assign MAC and IP for device, they mus be unique within the netowrk
+
+byte MAC_ARRAY[] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07};
+int IP_ARRAY[] = {240, 241, 242, 243, 244, 245, 246, 247};
+//-----------------------------------------------------------------------------
+
+byte mac[] = {
+  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, MAC_ARRAY[DEVICE_ID]
+};
+IPAddress ip(10, 0, 10, IP_ARRAY[DEVICE_ID]);
+
+bool isLANconnected = false;
+// bool isUDPconnected = false;
+
+//----------------------------- Setup for OSC ----------------------------------
 EthernetUDP Udp;
 
-// destination address
+// OSC destination address, 255 broadcast
 IPAddress targetIP(10, 0, 10, 101);   // Isadora machine IP address
-const unsigned int targetPort = 9999;
-const unsigned int inPort = 8888;
+const unsigned int destPort = 9999;          // remote port to receive OSC
+const unsigned int localPort = 8888;        // local port to listen for OSC packets
 
-#ifdef WEB_SERVER
-  EthernetServer server(80);                       //server port
-#endif
+unsigned long previousMillis = 0;
+const long interval = 1000;
+long uptime = 0;
 
-// array of servos position: {servo1, servo2, servo3}
-uint8_t servo_position[] = {0, 0, 0};
+char osc_prefix[16];                  // device OSC prefix message, i.e /camera1
 
-  // --- neopixel ------
-#ifdef NEOPIXEL
-  #define NUMPIXELS 1
-  Adafruit_NeoPixel pixels(NUMPIXELS, PIXEL_PIN, NEO_RGB + NEO_KHZ800);
-  // int previousPixelColor[] = {0,0,0};
-#endif
 
-#ifdef WEB_SERVER
-  // ---- web server ---
-  String readString;
-#endif
+//***************************** Functions *************************************
 
-//------------------------------ Functions -------------------------------------
+void moveMotorToPosition(uint8_t motor, int position){
+  switch(motor) {
+    case 1:
+      #ifdef SERIAL_DEBUGING
+        Serial.print("moving motor 1 to position:");
+        Serial.println(position);
+      #endif
+      stepper1.moveTo(position);
+      break;
+    case 2:
+      #ifdef SERIAL_DEBUGING
+        Serial.print("moving motor 2 to position:");
+        Serial.println(position);
+      #endif
+      stepper2.moveTo(position);
+      break;
+    case 3:
+      #ifdef SERIAL_DEBUGING
+        Serial.print("moving motor 3 to position:");
+        Serial.println(position);
+      #endif
+      stepper3.moveTo(position);
+      break;
+  }
+}
+
+//Callback when the encoder is rotated
+void encoder_rotated(i2cEncoderLibV2* obj) {
+  if (obj->readStatus(i2cEncoderLibV2::RINC))
+    #ifdef SERIAL_DEBUGING
+      Serial.print("Increment ");
+    #endif
+  else
+    #ifdef SERIAL_DEBUGING
+      Serial.print("Decrement ");
+    #endif
+    int motorID = (obj->id) + 1;
+    int position =obj->readCounterInt();
+    #ifdef SERIAL_DEBUGING
+      Serial.print(motorID);
+      Serial.print(": ");
+      Serial.println(position);
+    #endif
+
+  obj->writeRGBCode(0x00FF00);
+
+  moveMotorToPosition(motorID, position);
+}
+
+void encoder_click(i2cEncoderLibV2* obj) {
+  Serial.print("Push: ");
+  Serial.println(obj->id);
+  obj->writeRGBCode(0x0000FF);
+}
+
+void encoder_thresholds(i2cEncoderLibV2* obj) {
+  if (obj->readStatus(i2cEncoderLibV2::RMAX))
+    Serial.print("Max: ");
+  else
+    Serial.print("Min: ");
+  Serial.println(obj->id);
+  obj->writeRGBCode(0xFF0000);
+}
+
+void encoder_fade(i2cEncoderLibV2* obj) {
+  obj->writeRGBCode(0x000000);
+}
+
 int uptimeInSecs(){
   return (int)(millis()/1000);
 }
 
-void refresh_button_led(uint8_t active_servo){
-  for (uint8_t i = 0; i < 3; i++){
-    if (i == active_servo) digitalWrite(rgb_led_pins[i], LOW);
-    else digitalWrite(rgb_led_pins[i], HIGH);
+void servo1_OSCHandler(OSCMessage &msg, int addrOffset) {
+  // TODO replace with one function for all OSC with motor number?
+  int inValue = msg.getFloat(0);
+  #ifdef SERIAL_DEBUGING
+    Serial.print("osc servo 1 update: ");
+    Serial.println(inValue);
+  #endif
+
+  RGBEncoder[0].writeCounter((int32_t) inValue); //Reset of the CVAL register
+  moveMotorToPosition(1, inValue);
+}
+
+void servo2_OSCHandler(OSCMessage &msg, int addrOffset) {
+  int inValue = msg.getFloat(0);
+  #ifdef SERIAL_DEBUGING
+    Serial.print("osc servo 2 update: ");
+    Serial.println(inValue);
+  #endif
+
+  RGBEncoder[1].writeCounter((int32_t) inValue); //Reset of the CVAL register
+  moveMotorToPosition(2, inValue);
+}
+
+void servo3_OSCHandler(OSCMessage &msg, int addrOffset) {
+  // TODO check isadora sending int?
+  int inValue = msg.getFloat(0);
+  #ifdef SERIAL_DEBUGING
+    Serial.print("osc servo 3 update: ");
+    Serial.println(inValue);
+  #endif
+
+  RGBEncoder[2].writeCounter((int32_t) inValue); //Reset of the CVAL register
+  moveMotorToPosition(3, inValue);
+}
+
+void receiveOSCsingle(){
+  // read incoming udp packets
+  OSCMessage msgIn;
+  int size;
+
+  if( (size = Udp.parsePacket())>0)
+  {
+    //while((size = Udp.available()) > 0)
+    while(size--)
+      msgIn.fill(Udp.read());
+
+    // route messages
+    if(!msgIn.hasError()) {
+      // TODO add dynamic device number based on setting
+      msgIn.route("/device1/servo/1", servo1_OSCHandler);
+      msgIn.route("/device1/servo/2", servo2_OSCHandler);
+      msgIn.route("/device1/servo/3", servo3_OSCHandler);
+      // msgIn.route("/device1/localise", localise_OSCHandler);
+    }
+
+    //finish reading this packet:
+    Udp.flush();
+    //restart UDP connection to receive packets from other clients
+    Udp.stop();
+    Udp.begin(localPort);
   }
 }
 
-#ifdef SERIAL_DEBUGING
-void printIPAddress()
-  {
+void sendOSCmessage(char* name, int value){
+  char message_osc_header[32];
+  message_osc_header[0] = {0};
+  strcat(message_osc_header, osc_prefix);
+  strcat(message_osc_header, name);
+  OSCMessage message(message_osc_header);
+  message.add(value);
+  Udp.beginPacket(targetIP, destPort);
+  message.send(Udp);
+  Udp.endPacket();
+  message.empty();
+}
+
+void sendOSCreport(){
+  #ifdef SERIAL_DEBUGING
+    Serial.print("Sending OSC raport ");
+  #endif
+  sendOSCmessage("/ver", FIRMWARE_VERSION);
+  sendOSCmessage("/uptime", uptimeInSecs());
+  sendOSCmessage("/motor1/position", stepper1.currentPosition());
+  sendOSCmessage("/motor2/position", stepper2.currentPosition());
+  sendOSCmessage("/motor3/position", stepper3.currentPosition());
+  #ifdef SERIAL_DEBUGING
+    Serial.println(" *");
+  #endif
+}
+
+bool checkEthernetConnection(){
+  // // Check for Ethernet hardware present
+  if (Ethernet.hardwareStatus() == EthernetNoHardware) {
+    #ifdef SERIAL_DEBUGING
+      Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
+    #endif
+    digitalWrite(LED_PIN, LOW);
+    return false;
+  }
+  else if (Ethernet.linkStatus() == LinkOFF) {
+    #ifdef SERIAL_DEBUGING
+      Serial.println("Ethernet cable is not connected.");
+    #endif
+    digitalWrite(LED_PIN, HIGH);
+    return false;
+  }
+  else if (Ethernet.linkStatus() == LinkON) {
+    #ifdef SERIAL_DEBUGING
+      Serial.println("Ethernet cable is connected.");
+    #endif
+    digitalWrite(LED_PIN, LOW);
+    return true;
+  }
+}
+
+//******************************************************************************
+
+void setup() {
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, HIGH);  //NOTE on boot the led inidicate power, once connects with ethernet goes off
+
+  #ifdef SERIAL_DEBUGING
+    Serial.begin(SERIAL_SPEED);
+  #endif
+
+  #ifdef SERIAL_DEBUGING
+    Serial.print("\r\nFirmware Ver: "); Serial.print(FIRMWARE_VERSION);
+    Serial.println(" written by Grzegorz Zajac");
+    Serial.println("Compiled: " __DATE__ ", " __TIME__ ", " __VERSION__);
+    Serial.println();
+  #endif
+
+//-------------------------- Initializing encoders -----------------------------
+  #ifdef SERIAL_DEBUGING
+    Serial.println("initializing encoders");
+  #endif
+  uint8_t enc_cnt;
+
+  pinMode(INT_PIN, INPUT);
+
+  Wire.begin();
+  //Reset of all the encoder
+  for (enc_cnt = 0; enc_cnt < ENCODER_N; enc_cnt++) {
+    RGBEncoder[enc_cnt].reset();
+  }
+
+  // Initialization of the encoders
+  for (enc_cnt = 0; enc_cnt < ENCODER_N; enc_cnt++) {
+    RGBEncoder[enc_cnt].begin(
+      i2cEncoderLibV2::INT_DATA | i2cEncoderLibV2::WRAP_DISABLE
+      | i2cEncoderLibV2::DIRE_RIGHT
+      | i2cEncoderLibV2::IPUP_ENABLE
+      | i2cEncoderLibV2::RMOD_X1
+      | i2cEncoderLibV2::RGB_ENCODER);
+    RGBEncoder[enc_cnt].writeCounter((int32_t) 0); //Reset of the CVAL register
+    RGBEncoder[enc_cnt].writeMax((int32_t) potMax); //Set the maximum threshold to 50
+    RGBEncoder[enc_cnt].writeMin((int32_t) 0); //Set the minimum threshold to 0
+    RGBEncoder[enc_cnt].writeStep((int32_t) potStep); //The step at every encoder click is 1
+    RGBEncoder[enc_cnt].writeRGBCode(0);
+    RGBEncoder[enc_cnt].writeFadeRGB(3); //Fade enabled with 3ms step
+    RGBEncoder[enc_cnt].writeAntibouncingPeriod(25); //250ms of debouncing
+    RGBEncoder[enc_cnt].writeDoublePushPeriod(0); //Set the double push period to 500ms
+
+    /* Configure the events */
+    RGBEncoder[enc_cnt].onChange = encoder_rotated;
+    RGBEncoder[enc_cnt].onButtonRelease = encoder_click;
+    RGBEncoder[enc_cnt].onMinMax = encoder_thresholds;
+    RGBEncoder[enc_cnt].onFadeProcess = encoder_fade;
+
+    /* Enable the I2C Encoder V2 interrupts according to the previus attached callback */
+    RGBEncoder[enc_cnt].autoconfigInterrupt();
+    RGBEncoder[enc_cnt].id = enc_cnt;
+  }
+
+//-------------------------- Initializing steppers -----------------------------
+  #ifdef SERIAL_DEBUGING
+    Serial.println("initializing steppers");
+  #endif
+
+  stepper1.setMaxSpeed(500);
+  stepper1.setAcceleration(200);
+
+  stepper2.setMaxSpeed(500);
+  stepper2.setAcceleration(200);
+
+  stepper3.setMaxSpeed(500);
+  stepper3.setAcceleration(200);
+
+//-------------------------- Initializing ethernet -----------------------------
+  pinMode(9, OUTPUT);
+  digitalWrite(9, LOW);    // begin reset the WIZ820io
+  pinMode(10, OUTPUT);
+  digitalWrite(10, HIGH);  // de-select WIZ820io
+  digitalWrite(9, HIGH);   // end reset pulse
+
+  Ethernet.init(10);
+
+  // start the Ethernet connection
+  Ethernet.begin(mac, ip);
+
+  //Create OSC message header with unit number
+  osc_prefix[0] = {0};
+  strcat(osc_prefix, "/camera");
+
+  char buf[8];
+  sprintf(buf, "%d", DEVICE_ID);
+  strcat(osc_prefix, buf);
+
+
+
+  #ifdef SERIAL_DEBUGING
     Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
     Serial.print("IP Address        : ");
     Serial.println(Ethernet.localIP());
@@ -137,420 +406,46 @@ void printIPAddress()
     Serial.print("DNS Server IP     : ");
     Serial.println(Ethernet.dnsServerIP());
     Serial.println();
+    Serial.print("OSC prefix: ");
+    Serial.println(osc_prefix);
+    Serial.println();
     Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
-  }
-#endif
-
-int angleToPulse(int angle){
-  int pulse_wide = map(angle, 0, 180, MIN_PULSE_WIDTH,MAX_PULSE_WIDTH);   // map angle of 0 to 180 to Servo min and Servo max
-  int analog_value = int(float(pulse_wide) / 1000000 * SERVO_FREQ * 4096);
-  // #ifdef SERIAL_DEBUGING
-  //   Serial.print("Angle: "); Serial.print(angle);
-  //   Serial.print(" pulse: "); Serial.println(analog_value);
-  // #endif
-  return analog_value;
-}
-
-void moveMotorToPosition(uint8_t motor, int position_in_degrees){
-  pwm.setPWM(motor, 0, angleToPulse(position_in_degrees));
-  servo_position[motor] = position_in_degrees;
-}
-
-void readEncoderPosition(){
-
-  long knob_new_position;
-  knob_new_position = (knob.read() / 4);
-
-  if (knob_new_position != knob_position){
-    // check current motor position
-    //
-    #ifdef SERIAL_DEBUGING
-      Serial.print("* new pos = "); Serial.print(knob_new_position);
-      Serial.print(", prev pos = "); Serial.print(knob_position);
-    #endif
-    knob_position = knob_new_position;
-    // set limists
-    if (knob_position < 0) {
-      knob_position = 0;
-      knob.write(0);
-    }
-
-    // encoder has 24 jumps / rotation
-    knob_scaled = map(knob_position, 0, knob_scaling_factor, 0, 180);
-
-    if (knob_scaled > 180){
-      knob_position = knob_scaling_factor;
-      knob.write(knob_scaling_factor * 4);
-    }
-
-    #ifdef SERIAL_DEBUGING
-      Serial.print("  |  knob pos: "); Serial.print(knob_position);
-      Serial.print(" -> scaled by "); Serial.print(knob_scaling_factor);
-      Serial.print(" to "); Serial.print(knob_scaled);
-      Serial.print(" sent to motor "); Serial.println(selected_servo);
-    #endif
-
-    moveMotorToPosition(selected_servo, knob_scaled);
-
-    //TODO sync position with current OSC position value
-    //TODO add manual OSC flag
-  };
-}
-
-void servo1_OSCHandler(OSCMessage &msg, int addrOffset) {
-  #ifdef NEOPIXEL
-    pixels.setPixelColor(0, pixels.Color(255, 255, 0));
-    pixels.show();
-  #endif
-  int inValue = msg.getFloat(0);
-  #ifdef SERIAL_DEBUGING
-    Serial.print("osc servo 1 update: ");
-    Serial.println(inValue);
-  #endif
-  moveMotorToPosition(0, inValue);
-  #ifdef NEOPIXEL
-    pixels.clear();
-    pixels.show();
-  #endif
-}
-
-void servo2_OSCHandler(OSCMessage &msg, int addrOffset) {
-  #ifdef NEOPIXEL
-    pixels.setPixelColor(0, pixels.Color(255, 255, 0));
-    pixels.show();
-  #endif
-  int inValue = msg.getFloat(0);
-  #ifdef SERIAL_DEBUGING
-    Serial.print("osc servo 2 update: ");
-    Serial.println(inValue);
-  #endif
-  moveMotorToPosition(1, inValue);
-  #ifdef NEOPIXEL
-    pixels.clear();
-    pixels.show();
-  #endif
-}
-
-void servo3_OSCHandler(OSCMessage &msg, int addrOffset) {
-  #ifdef NEOPIXEL
-    pixels.setPixelColor(0, pixels.Color(255, 255, 0));
-    pixels.show();
-  #endif
-  int inValue = msg.getFloat(0);
-  #ifdef SERIAL_DEBUGING
-    Serial.print("osc servo 3 update: ");
-    Serial.println(inValue);
-  #endif
-  moveMotorToPosition(2, inValue);
-  #ifdef NEOPIXEL
-    pixels.clear();
-    pixels.show();
-  #endif
-}
-
-void localise_OSCHandler(OSCMessage &msg, int addrOffset) {
-  int inValue = msg.getFloat(0);
-  #ifdef SERIAL_DEBUGING
-    Serial.print("localise! ");
-    Serial.println(inValue);
-  #endif
-  if (inValue == 100){
-    #ifdef NEOPIXEL
-      pixels.setPixelColor(0, pixels.Color(255, 255, 255));
-      pixels.show();
-    #endif
-  } else {
-    #ifdef NEOPIXEL
-      pixels.clear();
-      pixels.show();
-    #endif
-  }
-}
-
-void receiveOSCsingle(){
-  // read incoming udp packets
-  OSCMessage msgIn;
-  int size;
-
-  if( (size = Udp.parsePacket())>0)
-  {
-
-    //while((size = Udp.available()) > 0)
-    while(size--)
-      msgIn.fill(Udp.read());
-
-    // route messages
-    if(!msgIn.hasError()) {
-      msgIn.route("/device1/servo/1", servo1_OSCHandler);
-      msgIn.route("/device1/servo/2", servo2_OSCHandler);
-      msgIn.route("/device1/servo/3", servo3_OSCHandler);
-      msgIn.route("/device1/localise", localise_OSCHandler);
-    }
-
-    //finish reading this packet:
-    Udp.flush();
-    //restart UDP connection to receive packets from other clients
-    Udp.stop();
-    Udp.begin(inPort);
-  }
-}
-
-void checkKnobButton(){
-  debouncer.update();
-  if ( debouncer.rose()){
-    selected_servo ++;
-    if (selected_servo == 3) selected_servo = 0;
-
-    refresh_button_led(selected_servo);
-
-    #ifdef SERIAL_DEBUGING
-     Serial.print("button pressed, current servo: "); Serial.println(selected_servo);
-    #endif
-  }
-}
-
-void sendOSCbundle(){
-  OSCBundle bndl;
-  bndl.add("/device1/ver").add(FIRMWARE_VERSION);
-  bndl.add("/device1/uptime").add(uptimeInSecs());
-
-  bndl.add("/device1/servo1/position").add(servo_position[0]);
-  bndl.add("/device1/servo2/position").add(servo_position[1]);
-  bndl.add("/device1/servo3/position").add(servo_position[2]);
-
-  Udp.beginPacket(targetIP, targetPort);
-  bndl.send(Udp); // send the bytes to the SLIP stream
-  Udp.endPacket(); // mark the end of the OSC Packet
-  bndl.empty(); // empty the bundle to free room for a new one
-
-  //finish reading this packet:
-  Udp.flush();
-
-  //restart UDP connection to receive packets from other clients
-  Udp.stop();
-  Udp.begin(inPort);
-}
-
-// -----------------------------------------------------------------------------
-
-void setup() {
-  #ifdef SERIAL_DEBUGING
-    Serial.begin(SERIAL_SPEED);
   #endif
 
-  #ifdef NEOPIXEL
-    pixels.begin();
-    delay(100);
-    // neopixel test
-    pixels.setBrightness(BRIGHTNESS);
-    pixels.setPixelColor(0, pixels.Color(0, 255, 0));
-    pixels.show();
-  #endif
-  //set RGB led off
-  for (uint8_t i = 0; i < 3; i++){
-    pinMode(rgb_led_pins[i], OUTPUT);
-    digitalWrite(rgb_led_pins[i], HIGH);
-  }
-
-  refresh_button_led(selected_servo);
-
-  // add pull down resistor 10k
-  pinMode(KNOB_BUTTON_PIN, INPUT);
-  debouncer.attach(KNOB_BUTTON_PIN); // Attach the debouncer to a pin with pull down, switch connected to +3V3
-  debouncer.interval(10); // Use a debounce interval of 25 milliseconds
-
-  //initialize servo board
-  pwm.begin();
-  // pwm.setOscillatorFrequency(27000000);
-  pwm.setPWMFreq(SERVO_FREQ);  // Analog servos run at ~50 Hz updates
-  delay(10);
-
-// Static
-  Ethernet.begin(mac, IP);
-  #ifdef SERIAL_DEBUGING
-    printIPAddress();
-  #endif
-
-  //TODO add check connected status if
-  Udp.begin(inPort);
-
-#ifdef WEB_SERVER
-  server.begin();                       			   // start to listen for clients
-#endif
+  //TODO test osc after loosing connection and reconnecting
+  Udp.begin(localPort);
 }
 
 
 void loop() {
-
-  checkKnobButton();
-  readEncoderPosition();
-
-  // TODO only if connected
   receiveOSCsingle();
 
   unsigned long currentMillis = millis();
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
-    sendOSCbundle();
+
+    isLANconnected = checkEthernetConnection();
+    if (isLANconnected){
+      sendOSCreport();
+    }
+    Serial.println(stepper1.currentPosition());
+    Serial.println(stepper2.currentPosition());
+    Serial.println(stepper3.currentPosition());
   }
 
-  #ifdef WEB_SERVER
-  // Create a client connection
-  EthernetClient client = server.available();
-  if (client) {
-    while (client.connected()) {
-      if (client.available()) {
-        #ifdef NEOPIXEL
-          pixels.setPixelColor(0, pixels.Color(0, 0, 255));
-          pixels.show();
-        #endif
-
-        char c = client.read();
-
-        //read char by char HTTP request
-        if (readString.length() < 100) {
-          //store characters to string
-          readString += c;
-          //Serial.print(c);
-         }
-
-         //if HTTP request has ended
-         if (c == '\n') {
-           Serial.println(readString); //print to serial monitor for debuging
-
-           client.println("HTTP/1.1 200 OK"); //send new page
-           client.println("Content-Type: text/html");
-           // client.println("<meta http-equiv=\"refresh\" content=>'0;url=http://arduino.cc/'");
-           client.println("Refresh: 3;URL='//10.0.10.131/'>");
-           client.println("Connection: close");
-           // client.println("Refresh: 3");
-           client.println();
-           client.println("<!DOCTYPE HTML>");
-           client.println("<HTML>");
-           client.println("<HEAD>");
-           client.println("<TITLE>Camera Lens Controler</TITLE>");
-           client.println("</HEAD>");
-           client.println("<BODY>");
-           client.println("<H1>SSP Camera Lens controler</H1>");
-           client.println("<hr />");
-           client.println("<br />");
-           client.println("<h3><a href=\"/?buttonIDclicked\"\">Device ID:</a>");
-           client.print(DEVICE_ID); client.println("</h3>");
-           client.println("<br />");
-           client.print("Firmware version: ");
-           client.println(FIRMWARE_VERSION);
-           client.println("<br />");
-           client.println("IP address: ");
-           client.println(Ethernet.localIP());
-           client.println("<br />");
-           client.print("uptime: ");
-           client.print(uptimeInSecs());
-           client.println(" secs");
-           client.println("<br />");
-
-           client.print("knob position: "); client.print(knob_position);
-           client.print(" -> scaled by "); client.print(knob_scaling_factor);
-           client.print(" to "); client.println(knob_scaled);
-           client.println("<br />");
-
-           client.println("<ul>");
-           for (uint8_t i = 0; i < 3; i++){
-             client.println("<li>");
-             client.print("servo "); client.println(i);
-             client.println(" @ ");
-             client.print(servo_position[i]);
-             if (i == selected_servo){
-               switch (i){
-                 case 0:
-                 client.print("<span style='color:red;'> <- selected</span>");
-                 break;
-                 case 1:
-                 client.print("<span style='color:green;'> <- selected</span>");
-                 break;
-                 case 2:
-                 client.print("<span style='color:blue;'> <- selected</span>");
-                 break;
-               }
-             }
-             client.println("</li>");
-           }
-           client.println("</ul");
-           client.println("<br />");
-
-
-           client.println("<br />");
-           client.println("<a href=\"/?button0clicked\"\"><button class='button' type='button'>Set Servos @ 0</button></a>");
-           client.println("<a href=\"/?button90clicked\"\"><button class='button' type='button'>Set Servos @ 90</button></a>");
-           client.println("<a href=\"/?button180clicked\"\"><button class='button' type='button'>Set Servos @ 180</button></a>");
-           client.println("<br />");
-
-
-
-           client.println("<br />");
-           client.println("</BODY>");
-           client.println("</HTML>");
-
-           client.println("<style type='text/css'>");
-             client.println("body {background-color: #222222; color: #fefefe; font-family:  Helvetica, Arial, sans-serif; font-weight: lighter;}");
-             client.println("h1 {color: #104bab}");
-             client.println("h3 {color: #ff5620}");
-
-             client.println(".button {background-color: #222222; color: white; border: 1px solid #104bab; border-radius: 2px; padding: 15px 32px; margin: 4px 2px; font-size: 16px; cursor: pointer;}");
-
-           client.println("</style>");
-
-           delay(1);
-           //stopping client
-           client.stop();
-           //controls the Arduino if you press the buttons
-
-           if (readString.indexOf("?button0clicked") >0 ){
-             #ifdef SERIAL_DEBUGING
-               Serial.println("Web button pressed, setting servos @ 0");
-             #endif
-             moveMotorToPosition(0,0);
-             moveMotorToPosition(1,0);
-             moveMotorToPosition(2,0);
-           }
-           if (readString.indexOf("?button90clicked") >0){
-             #ifdef SERIAL_DEBUGING
-               Serial.println("Web button pressed, setting servos @ 90");
-             #endif
-             moveMotorToPosition(0,90);
-             moveMotorToPosition(1,90);
-             moveMotorToPosition(2,90);
-           }
-           if (readString.indexOf("?button180clicked") >0){
-             #ifdef SERIAL_DEBUGING
-               Serial.println("Web button pressed, setting servos @ 90");
-             #endif
-             moveMotorToPosition(0,180);
-             moveMotorToPosition(1,180);
-             moveMotorToPosition(2,180);
-           }
-           if (readString.indexOf("?buttonIDclicked") >0){
-             #ifdef SERIAL_DEBUGING
-               Serial.println("Web button pressed, identifing unit with LED");
-             #endif
-             #ifdef NEOPIXEL
-               pixels.setPixelColor(0, pixels.Color(150, 150, 150));
-               pixels.setBrightness(50);
-               pixels.show();
-               delay(500);
-               pixels.clear();
-               pixels.show();
-             #endif
-           }
-            //clearing string for next read
-            readString="";
-         }
-          #ifdef NEOPIXEL
-           pixels.clear();
-           pixels.show();
-          #endif
-       }
+  // check pots
+  uint8_t enc_cnt;
+  if (digitalRead(INT_PIN) == LOW) {
+    //Interrupt from the encoders, start to scan the encoder matrix
+    for (enc_cnt = 0; enc_cnt < ENCODER_N; enc_cnt++) {
+      if (digitalRead(INT_PIN) == HIGH) { //If the interrupt pin return high, exit from the encoder scan
+        break;
+      }
+      RGBEncoder[enc_cnt].updateStatus();
     }
-  }                      			   // start to listen for clients
-  #endif
+  }
 
+  stepper1.run();
+  stepper2.run();
+  stepper3.run();
 }
