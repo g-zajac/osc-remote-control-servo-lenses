@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 219
+#define FIRMWARE_VERSION 220
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -7,22 +7,41 @@
 #define DEVICE_ID 0
 // ****************
 
-
 // Enable/Disable modules
 #define SERIAL_DEBUGING
 
-// pins definition
+//-------------------------------- pins definition -----------------------------
 #define LED_PIN 6
 
-// Parameters
+// Focus
+#define MOTOR1DIR_PIN 33
+#define MOTOR1STEP_PIN 34
+
+// Aperture
+#define MOTOR2DIR_PIN 39
+#define MOTOR2STEP_PIN 40
+
+// Zoom
+#define MOTOR3DIR_PIN 20
+#define MOTOR3STEP_PIN 21
+
+#define ENCODER_N 3 //Number limit of the encoder
+#define INT_PIN 17 // Definition of the encoder interrupt pin
+
+
+//-------------------------------- settings ------------------------------------
 #define SERIAL_SPEED 115200
+
+// encoders settings
+#define potStep 1
+#define potMax 100
 
 
 //------------------------------------------------------------------------------
 #include <Arduino.h>
 #include <SPI.h>
 #include <Ethernet.h>
-// #include <OSCBundle.h>
+
 #include <OSCMessage.h>
 
 #include <Wire.h>
@@ -32,7 +51,7 @@
 
 
 //------------------------------ Stepper motors --------------------------------
-
+// Bipolar motor, converted 28BYJ-48 with DRV8834 driver
 // 28BYJ-48 motor runs in full step mode, each step corresponds to a rotation of 11.25°.
 // That means there are 32 steps per revolution (360°/11.25° = 32). What this means is that
 // there are actually 32*63.68395 steps per revolution = 2037.8864 ~ 2038 steps!
@@ -40,30 +59,11 @@
 // Define a stepper and the pins it will use
 // AccelStepper stepper; // Defaults to AccelStepper::FULL4WIRE (4 pins) on 2, 3, 4, 5
 
-
-// Motor one bipolar, converted 28BYJ-48 with DRV8834 driver
-
-// Focus
-int motor1DirPin = 33;
-int motor1StepPin = 34;
-
-// Aperture
-int motor2DirPin = 39;
-int motor2StepPin = 40;
-
-// Zoom
-int motor3DirPin = 20;
-int motor3StepPin = 21;
-
 //set up the accelStepper intance
 //the "1" tells it we are using a driver
-AccelStepper stepper1(AccelStepper::DRIVER, motor1StepPin, motor1DirPin);
-AccelStepper stepper2(AccelStepper::DRIVER, motor2StepPin, motor2DirPin);
-AccelStepper stepper3(AccelStepper::DRIVER, motor3StepPin, motor3DirPin);
-
-// int position1 = 0;
-// int position2 = 0;
-// int position3 = 0;
+AccelStepper stepper1(AccelStepper::DRIVER, MOTOR1STEP_PIN, MOTOR1DIR_PIN);
+AccelStepper stepper2(AccelStepper::DRIVER, MOTOR2STEP_PIN, MOTOR2DIR_PIN);
+AccelStepper stepper3(AccelStepper::DRIVER, MOTOR3STEP_PIN, MOTOR3DIR_PIN);
 
 //------------------------------ I2C encoders ----------------------------------
 // Connections:
@@ -73,16 +73,12 @@ AccelStepper stepper3(AccelStepper::DRIVER, motor3StepPin, motor3DirPin);
 // SCL -> A5
 // INT -> 3 temporary for tests
 
-#define ENCODER_N 3 //Number limit of the encoder
-const int IntPin = 17; // Definition of the interrupt pin. You can change according to your board
-
 //Class initialization with the I2C addresses
 i2cEncoderLibV2 RGBEncoder[ENCODER_N] = { i2cEncoderLibV2(0x01),
                                           i2cEncoderLibV2(0x02),
                                           i2cEncoderLibV2(0x03),
                                         };
 uint8_t encoder_status, i;
-
 
 //---------------------------- MAC & IP list ----------------------------------
 // Change #define DEVICE_ID to a number from 0 to 7 on top of the code to
@@ -120,14 +116,24 @@ char osc_prefix[16];                  // device OSC prefix message, i.e /camera1
 void moveMotorToPosition(uint8_t motor, int position){
   switch(motor) {
     case 1:
-      Serial.print("move motor to position:");
-      Serial.println(position);
+      #ifdef SERIAL_DEBUGING
+        Serial.print("moving motor 1 to position:");
+        Serial.println(position);
+      #endif
       stepper1.moveTo(position);
       break;
     case 2:
+      #ifdef SERIAL_DEBUGING
+        Serial.print("moving motor 2 to position:");
+        Serial.println(position);
+      #endif
       stepper2.moveTo(position);
       break;
     case 3:
+      #ifdef SERIAL_DEBUGING
+        Serial.print("moving motor 3 to position:");
+        Serial.println(position);
+      #endif
       stepper3.moveTo(position);
       break;
   }
@@ -136,14 +142,20 @@ void moveMotorToPosition(uint8_t motor, int position){
 //Callback when the encoder is rotated
 void encoder_rotated(i2cEncoderLibV2* obj) {
   if (obj->readStatus(i2cEncoderLibV2::RINC))
-    Serial.print("Increment ");
+    #ifdef SERIAL_DEBUGING
+      Serial.print("Increment ");
+    #endif
   else
-    Serial.print("Decrement ");
-  int motorID = (obj->id) + 1;
-  Serial.print(motorID);
-  int position =obj->readCounterInt();
-  Serial.print(": ");
-  Serial.println(position);
+    #ifdef SERIAL_DEBUGING
+      Serial.print("Decrement ");
+    #endif
+    int motorID = (obj->id) + 1;
+    int position =obj->readCounterInt();
+    #ifdef SERIAL_DEBUGING
+      Serial.print(motorID);
+      Serial.print(": ");
+      Serial.println(position);
+    #endif
 
   obj->writeRGBCode(0x00FF00);
 
@@ -169,17 +181,20 @@ void encoder_fade(i2cEncoderLibV2* obj) {
   obj->writeRGBCode(0x000000);
 }
 
-
 int uptimeInSecs(){
   return (int)(millis()/1000);
 }
 
 void servo1_OSCHandler(OSCMessage &msg, int addrOffset) {
+  // TODO replace with one function for all OSC with motor number?
   int inValue = msg.getFloat(0);
   #ifdef SERIAL_DEBUGING
     Serial.print("osc servo 1 update: ");
     Serial.println(inValue);
   #endif
+
+  RGBEncoder[0].writeCounter((int32_t) inValue); //Reset of the CVAL register
+  moveMotorToPosition(1, inValue);
 }
 
 void servo2_OSCHandler(OSCMessage &msg, int addrOffset) {
@@ -188,14 +203,21 @@ void servo2_OSCHandler(OSCMessage &msg, int addrOffset) {
     Serial.print("osc servo 2 update: ");
     Serial.println(inValue);
   #endif
+
+  RGBEncoder[1].writeCounter((int32_t) inValue); //Reset of the CVAL register
+  moveMotorToPosition(2, inValue);
 }
 
 void servo3_OSCHandler(OSCMessage &msg, int addrOffset) {
+  // TODO check isadora sending int?
   int inValue = msg.getFloat(0);
   #ifdef SERIAL_DEBUGING
     Serial.print("osc servo 3 update: ");
     Serial.println(inValue);
   #endif
+
+  RGBEncoder[2].writeCounter((int32_t) inValue); //Reset of the CVAL register
+  moveMotorToPosition(3, inValue);
 }
 
 void receiveOSCsingle(){
@@ -286,9 +308,6 @@ void setup() {
 
   #ifdef SERIAL_DEBUGING
     Serial.begin(SERIAL_SPEED);
-    // while (!Serial) {
-    //   ; //TODO remove for production, debuging only, wait for serial port to connect. Needed for native USB port only
-    // }
   #endif
 
   #ifdef SERIAL_DEBUGING
@@ -304,9 +323,10 @@ void setup() {
   #endif
   uint8_t enc_cnt;
 
-  pinMode(IntPin, INPUT);
+  pinMode(INT_PIN, INPUT);
+
   Wire.begin();
-  //Reset of all the encoder ìs
+  //Reset of all the encoder
   for (enc_cnt = 0; enc_cnt < ENCODER_N; enc_cnt++) {
     RGBEncoder[enc_cnt].reset();
   }
@@ -320,9 +340,9 @@ void setup() {
       | i2cEncoderLibV2::RMOD_X1
       | i2cEncoderLibV2::RGB_ENCODER);
     RGBEncoder[enc_cnt].writeCounter((int32_t) 0); //Reset of the CVAL register
-    RGBEncoder[enc_cnt].writeMax((int32_t) 400); //Set the maximum threshold to 50
+    RGBEncoder[enc_cnt].writeMax((int32_t) potMax); //Set the maximum threshold to 50
     RGBEncoder[enc_cnt].writeMin((int32_t) 0); //Set the minimum threshold to 0
-    RGBEncoder[enc_cnt].writeStep((int32_t) 10); //The step at every encoder click is 1
+    RGBEncoder[enc_cnt].writeStep((int32_t) potStep); //The step at every encoder click is 1
     RGBEncoder[enc_cnt].writeRGBCode(0);
     RGBEncoder[enc_cnt].writeFadeRGB(3); //Fade enabled with 3ms step
     RGBEncoder[enc_cnt].writeAntibouncingPeriod(25); //250ms of debouncing
@@ -339,8 +359,6 @@ void setup() {
     RGBEncoder[enc_cnt].id = enc_cnt;
   }
 
-  RGBEncoder[0].writeCounter((int32_t) 100); //Reset of the CVAL register
-
 //-------------------------- Initializing steppers -----------------------------
   #ifdef SERIAL_DEBUGING
     Serial.println("initializing steppers");
@@ -348,6 +366,12 @@ void setup() {
 
   stepper1.setMaxSpeed(500);
   stepper1.setAcceleration(200);
+
+  stepper2.setMaxSpeed(500);
+  stepper2.setAcceleration(200);
+
+  stepper3.setMaxSpeed(500);
+  stepper3.setAcceleration(200);
 
 //-------------------------- Initializing ethernet -----------------------------
   pinMode(9, OUTPUT);
@@ -368,6 +392,7 @@ void setup() {
   char buf[8];
   sprintf(buf, "%d", DEVICE_ID);
   strcat(osc_prefix, buf);
+
 
 
   #ifdef SERIAL_DEBUGING
@@ -391,6 +416,7 @@ void setup() {
   Udp.begin(localPort);
 }
 
+
 void loop() {
   receiveOSCsingle();
 
@@ -403,24 +429,23 @@ void loop() {
       sendOSCreport();
     }
     Serial.println(stepper1.currentPosition());
+    Serial.println(stepper2.currentPosition());
+    Serial.println(stepper3.currentPosition());
   }
 
   // check pots
   uint8_t enc_cnt;
-  if (digitalRead(IntPin) == LOW) {
+  if (digitalRead(INT_PIN) == LOW) {
     //Interrupt from the encoders, start to scan the encoder matrix
     for (enc_cnt = 0; enc_cnt < ENCODER_N; enc_cnt++) {
-      if (digitalRead(IntPin) == HIGH) { //If the interrupt pin return high, exit from the encoder scan
+      if (digitalRead(INT_PIN) == HIGH) { //If the interrupt pin return high, exit from the encoder scan
         break;
       }
       RGBEncoder[enc_cnt].updateStatus();
     }
   }
 
-
-  // If at the end of travel go to the other end
-  // if (stepper1.distanceToGo() == 0)
-  //   stepper1.moveTo(-stepper1.currentPosition());
-
   stepper1.run();
+  stepper2.run();
+  stepper3.run();
 }
