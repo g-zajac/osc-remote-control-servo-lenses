@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 217
+#define FIRMWARE_VERSION 219
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -42,12 +42,28 @@
 
 
 // Motor one bipolar, converted 28BYJ-48 with DRV8834 driver
+
+// Focus
 int motor1DirPin = 33;
 int motor1StepPin = 34;
+
+// Aperture
+int motor2DirPin = 39;
+int motor2StepPin = 40;
+
+// Zoom
+int motor3DirPin = 20;
+int motor3StepPin = 21;
 
 //set up the accelStepper intance
 //the "1" tells it we are using a driver
 AccelStepper stepper1(AccelStepper::DRIVER, motor1StepPin, motor1DirPin);
+AccelStepper stepper2(AccelStepper::DRIVER, motor2StepPin, motor2DirPin);
+AccelStepper stepper3(AccelStepper::DRIVER, motor3StepPin, motor3DirPin);
+
+// int position1 = 0;
+// int position2 = 0;
+// int position3 = 0;
 
 //------------------------------ I2C encoders ----------------------------------
 // Connections:
@@ -66,37 +82,6 @@ i2cEncoderLibV2 RGBEncoder[ENCODER_N] = { i2cEncoderLibV2(0x01),
                                           i2cEncoderLibV2(0x03),
                                         };
 uint8_t encoder_status, i;
-
-//Callback when the encoder is rotated
-void encoder_rotated(i2cEncoderLibV2* obj) {
-  if (obj->readStatus(i2cEncoderLibV2::RINC))
-    Serial.print("Increment ");
-  else
-    Serial.print("Decrement ");
-  Serial.print(obj->id);
-  Serial.print(": ");
-  Serial.println(obj->readCounterInt());
-  obj->writeRGBCode(0x00FF00);
-}
-
-void encoder_click(i2cEncoderLibV2* obj) {
-  Serial.print("Push: ");
-  Serial.println(obj->id);
-  obj->writeRGBCode(0x0000FF);
-}
-
-void encoder_thresholds(i2cEncoderLibV2* obj) {
-  if (obj->readStatus(i2cEncoderLibV2::RMAX))
-    Serial.print("Max: ");
-  else
-    Serial.print("Min: ");
-  Serial.println(obj->id);
-  obj->writeRGBCode(0xFF0000);
-}
-
-void encoder_fade(i2cEncoderLibV2* obj) {
-  obj->writeRGBCode(0x000000);
-}
 
 
 //---------------------------- MAC & IP list ----------------------------------
@@ -124,13 +109,67 @@ const unsigned int destPort = 9999;          // remote port to receive OSC
 const unsigned int localPort = 8888;        // local port to listen for OSC packets
 
 unsigned long previousMillis = 0;
-const long interval = 500;
+const long interval = 1000;
 long uptime = 0;
 
 char osc_prefix[16];                  // device OSC prefix message, i.e /camera1
 
 
 //***************************** Functions *************************************
+
+void moveMotorToPosition(uint8_t motor, int position){
+  switch(motor) {
+    case 1:
+      Serial.print("move motor to position:");
+      Serial.println(position);
+      stepper1.moveTo(position);
+      break;
+    case 2:
+      stepper2.moveTo(position);
+      break;
+    case 3:
+      stepper3.moveTo(position);
+      break;
+  }
+}
+
+//Callback when the encoder is rotated
+void encoder_rotated(i2cEncoderLibV2* obj) {
+  if (obj->readStatus(i2cEncoderLibV2::RINC))
+    Serial.print("Increment ");
+  else
+    Serial.print("Decrement ");
+  int motorID = (obj->id) + 1;
+  Serial.print(motorID);
+  int position =obj->readCounterInt();
+  Serial.print(": ");
+  Serial.println(position);
+
+  obj->writeRGBCode(0x00FF00);
+
+  moveMotorToPosition(motorID, position);
+}
+
+void encoder_click(i2cEncoderLibV2* obj) {
+  Serial.print("Push: ");
+  Serial.println(obj->id);
+  obj->writeRGBCode(0x0000FF);
+}
+
+void encoder_thresholds(i2cEncoderLibV2* obj) {
+  if (obj->readStatus(i2cEncoderLibV2::RMAX))
+    Serial.print("Max: ");
+  else
+    Serial.print("Min: ");
+  Serial.println(obj->id);
+  obj->writeRGBCode(0xFF0000);
+}
+
+void encoder_fade(i2cEncoderLibV2* obj) {
+  obj->writeRGBCode(0x000000);
+}
+
+
 int uptimeInSecs(){
   return (int)(millis()/1000);
 }
@@ -188,7 +227,7 @@ void receiveOSCsingle(){
 }
 
 void sendOSCmessage(char* name, int value){
-  char message_osc_header[16];
+  char message_osc_header[32];
   message_osc_header[0] = {0};
   strcat(message_osc_header, osc_prefix);
   strcat(message_osc_header, name);
@@ -206,6 +245,9 @@ void sendOSCreport(){
   #endif
   sendOSCmessage("/ver", FIRMWARE_VERSION);
   sendOSCmessage("/uptime", uptimeInSecs());
+  sendOSCmessage("/motor1/position", stepper1.currentPosition());
+  sendOSCmessage("/motor2/position", stepper2.currentPosition());
+  sendOSCmessage("/motor3/position", stepper3.currentPosition());
   #ifdef SERIAL_DEBUGING
     Serial.println(" *");
   #endif
@@ -278,9 +320,9 @@ void setup() {
       | i2cEncoderLibV2::RMOD_X1
       | i2cEncoderLibV2::RGB_ENCODER);
     RGBEncoder[enc_cnt].writeCounter((int32_t) 0); //Reset of the CVAL register
-    RGBEncoder[enc_cnt].writeMax((int32_t) 50); //Set the maximum threshold to 50
+    RGBEncoder[enc_cnt].writeMax((int32_t) 400); //Set the maximum threshold to 50
     RGBEncoder[enc_cnt].writeMin((int32_t) 0); //Set the minimum threshold to 0
-    RGBEncoder[enc_cnt].writeStep((int32_t) 1); //The step at every encoder click is 1
+    RGBEncoder[enc_cnt].writeStep((int32_t) 10); //The step at every encoder click is 1
     RGBEncoder[enc_cnt].writeRGBCode(0);
     RGBEncoder[enc_cnt].writeFadeRGB(3); //Fade enabled with 3ms step
     RGBEncoder[enc_cnt].writeAntibouncingPeriod(25); //250ms of debouncing
@@ -297,6 +339,7 @@ void setup() {
     RGBEncoder[enc_cnt].id = enc_cnt;
   }
 
+  RGBEncoder[0].writeCounter((int32_t) 100); //Reset of the CVAL register
 
 //-------------------------- Initializing steppers -----------------------------
   #ifdef SERIAL_DEBUGING
@@ -305,8 +348,6 @@ void setup() {
 
   stepper1.setMaxSpeed(500);
   stepper1.setAcceleration(200);
-  stepper1.moveTo(800);
-
 
 //-------------------------- Initializing ethernet -----------------------------
   pinMode(9, OUTPUT);
@@ -316,28 +357,6 @@ void setup() {
   digitalWrite(9, HIGH);   // end reset pulse
 
   Ethernet.init(10);
-
-  // Initialize the Ethernet server library
-  // with the IP address and port you want to use
-  // (port 80 is default for HTTP):
-  // EthernetServer server(80);
-
-  // // Check for Ethernet hardware present
-  // if (Ethernet.hardwareStatus() == EthernetNoHardware) {
-  //   #ifdef SERIAL_DEBUGING
-  //     Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
-  //   #endif
-  //   digitalWrite(LED_PIN, LOW);
-  // }
-  // if (Ethernet.linkStatus() == LinkOFF) {
-  //   #ifdef SERIAL_DEBUGING
-  //     Serial.println("Ethernet cable is not connected.");
-  //   #endif
-  //   digitalWrite(LED_PIN, HIGH);
-  //
-  //   // start the Ethernet connection
-  //   Ethernet.begin(mac, ip);
-  // }
 
   // start the Ethernet connection
   Ethernet.begin(mac, ip);
@@ -400,8 +419,8 @@ void loop() {
 
 
   // If at the end of travel go to the other end
-  if (stepper1.distanceToGo() == 0)
-    stepper1.moveTo(-stepper1.currentPosition());
+  // if (stepper1.distanceToGo() == 0)
+  //   stepper1.moveTo(-stepper1.currentPosition());
 
   stepper1.run();
 }
