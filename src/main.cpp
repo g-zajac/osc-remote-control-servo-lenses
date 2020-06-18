@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 215
+#define FIRMWARE_VERSION 217
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -100,6 +100,9 @@ void encoder_fade(i2cEncoderLibV2* obj) {
 
 
 //---------------------------- MAC & IP list ----------------------------------
+// Change #define DEVICE_ID to a number from 0 to 7 on top of the code to
+// assign MAC and IP for device, they mus be unique within the netowrk
+
 byte MAC_ARRAY[] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07};
 int IP_ARRAY[] = {240, 241, 242, 243, 244, 245, 246, 247};
 //-----------------------------------------------------------------------------
@@ -109,10 +112,13 @@ byte mac[] = {
 };
 IPAddress ip(10, 0, 10, IP_ARRAY[DEVICE_ID]);
 
+bool isLANconnected = false;
+// bool isUDPconnected = false;
+
 //----------------------------- Setup for OSC ----------------------------------
 EthernetUDP Udp;
 
-// OSC destination address
+// OSC destination address, 255 broadcast
 IPAddress targetIP(10, 0, 10, 101);   // Isadora machine IP address
 const unsigned int destPort = 9999;          // remote port to receive OSC
 const unsigned int localPort = 8888;        // local port to listen for OSC packets
@@ -122,7 +128,6 @@ const long interval = 500;
 long uptime = 0;
 
 char osc_prefix[16];                  // device OSC prefix message, i.e /camera1
-
 
 
 //***************************** Functions *************************************
@@ -196,8 +201,39 @@ void sendOSCmessage(char* name, int value){
 }
 
 void sendOSCreport(){
+  #ifdef SERIAL_DEBUGING
+    Serial.print("Sending OSC raport ");
+  #endif
   sendOSCmessage("/ver", FIRMWARE_VERSION);
   sendOSCmessage("/uptime", uptimeInSecs());
+  #ifdef SERIAL_DEBUGING
+    Serial.println(" *");
+  #endif
+}
+
+bool checkEthernetConnection(){
+  // // Check for Ethernet hardware present
+  if (Ethernet.hardwareStatus() == EthernetNoHardware) {
+    #ifdef SERIAL_DEBUGING
+      Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
+    #endif
+    digitalWrite(LED_PIN, LOW);
+    return false;
+  }
+  else if (Ethernet.linkStatus() == LinkOFF) {
+    #ifdef SERIAL_DEBUGING
+      Serial.println("Ethernet cable is not connected.");
+    #endif
+    digitalWrite(LED_PIN, HIGH);
+    return false;
+  }
+  else if (Ethernet.linkStatus() == LinkON) {
+    #ifdef SERIAL_DEBUGING
+      Serial.println("Ethernet cable is connected.");
+    #endif
+    digitalWrite(LED_PIN, LOW);
+    return true;
+  }
 }
 
 //******************************************************************************
@@ -208,9 +244,9 @@ void setup() {
 
   #ifdef SERIAL_DEBUGING
     Serial.begin(SERIAL_SPEED);
-    while (!Serial) {
-      ; //TODO remove for production, debuging only, wait for serial port to connect. Needed for native USB port only
-    }
+    // while (!Serial) {
+    //   ; //TODO remove for production, debuging only, wait for serial port to connect. Needed for native USB port only
+    // }
   #endif
 
   #ifdef SERIAL_DEBUGING
@@ -269,7 +305,7 @@ void setup() {
 
   stepper1.setMaxSpeed(500);
   stepper1.setAcceleration(200);
-  stepper1.moveTo(2038);
+  stepper1.moveTo(800);
 
 
 //-------------------------- Initializing ethernet -----------------------------
@@ -286,24 +322,25 @@ void setup() {
   // (port 80 is default for HTTP):
   // EthernetServer server(80);
 
+  // // Check for Ethernet hardware present
+  // if (Ethernet.hardwareStatus() == EthernetNoHardware) {
+  //   #ifdef SERIAL_DEBUGING
+  //     Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
+  //   #endif
+  //   digitalWrite(LED_PIN, LOW);
+  // }
+  // if (Ethernet.linkStatus() == LinkOFF) {
+  //   #ifdef SERIAL_DEBUGING
+  //     Serial.println("Ethernet cable is not connected.");
+  //   #endif
+  //   digitalWrite(LED_PIN, HIGH);
+  //
+  //   // start the Ethernet connection
+  //   Ethernet.begin(mac, ip);
+  // }
+
   // start the Ethernet connection
   Ethernet.begin(mac, ip);
-
-  // // Check for Ethernet hardware present
-  if (Ethernet.hardwareStatus() == EthernetNoHardware) {
-    #ifdef SERIAL_DEBUGING
-      Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
-    #endif
-    while (true) {
-      delay(1); // do nothing, no point running without Ethernet hardware
-    }
-  }
-  if (Ethernet.linkStatus() == LinkOFF) {
-    #ifdef SERIAL_DEBUGING
-      Serial.println("Ethernet cable is not connected.");
-    #endif
-    digitalWrite(LED_PIN, HIGH);
-  }
 
   //Create OSC message header with unit number
   osc_prefix[0] = {0};
@@ -341,13 +378,16 @@ void loop() {
   unsigned long currentMillis = millis();
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
-    sendOSCreport();
+
+    isLANconnected = checkEthernetConnection();
+    if (isLANconnected){
+      sendOSCreport();
+    }
     Serial.println(stepper1.currentPosition());
   }
 
-
+  // check pots
   uint8_t enc_cnt;
-
   if (digitalRead(IntPin) == LOW) {
     //Interrupt from the encoders, start to scan the encoder matrix
     for (enc_cnt = 0; enc_cnt < ENCODER_N; enc_cnt++) {
