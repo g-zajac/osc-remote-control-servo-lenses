@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 224
+#define FIRMWARE_VERSION 225
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -9,10 +9,9 @@
 
 // Enable/Disable modules
 #define SERIAL_DEBUGING
+#define NEOPIXEL
 
 //-------------------------------- pins definition -----------------------------
-#define LED_PIN 2
-
 // Focus
 #define MOTOR1DIR_PIN 15
 #define MOTOR1STEP_PIN 14
@@ -30,6 +29,8 @@
 #define ENCODER_N 3 //Number limit of the encoder
 #define INT_PIN 17 // Definition of the encoder interrupt pin
 
+#define PIXEL_PIN 2
+#define NUMPIXELS 1
 
 //-------------------------------- settings ------------------------------------
 #define SERIAL_SPEED 115200
@@ -51,6 +52,9 @@
 
 #include <AccelStepper.h>
 
+#ifdef NEOPIXEL
+  #include <Adafruit_NeoPixel.h>
+#endif
 
 //------------------------------ Stepper motors --------------------------------
 // Bipolar motor, converted 28BYJ-48 with DRV8834 driver
@@ -112,6 +116,9 @@ long uptime = 0;
 
 char osc_prefix[16];                  // device OSC prefix message, i.e /camera1
 
+#ifdef NEOPIXEL
+  Adafruit_NeoPixel pixels(NUMPIXELS, PIXEL_PIN, NEO_GRB + NEO_KHZ800);
+#endif
 
 //***************************** Functions *************************************
 
@@ -240,6 +247,11 @@ void receiveOSCsingle(){
       msgIn.route("/camera1/servo/2", servo2_OSCHandler);
       msgIn.route("/camera1/servo/3", servo3_OSCHandler);
       // msgIn.route("/device1/localise", localise_OSCHandler);
+
+      #ifdef NEOPIXEL
+      pixels.setPixelColor(0, pixels.Color(255, 0, 150));
+      pixels.show();
+      #endif
     }
 
     //finish reading this packet:
@@ -283,21 +295,36 @@ bool checkEthernetConnection(){
     #ifdef SERIAL_DEBUGING
       Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
     #endif
-    digitalWrite(LED_PIN, LOW);
+
+    #ifdef NEOPIXEL
+      pixels.setPixelColor(0, pixels.Color(150, 0, 0));
+      pixels.show();
+    #endif
+
     return false;
   }
   else if (Ethernet.linkStatus() == LinkOFF) {
     #ifdef SERIAL_DEBUGING
       Serial.println("Ethernet cable is not connected.");
     #endif
-    digitalWrite(LED_PIN, HIGH);
+
+    #ifdef NEOPIXEL
+      pixels.setPixelColor(0, pixels.Color(150, 0, 0));
+      pixels.show();
+    #endif
+
     return false;
   }
   else if (Ethernet.linkStatus() == LinkON) {
     #ifdef SERIAL_DEBUGING
       Serial.println("Ethernet cable is connected.");
     #endif
-    digitalWrite(LED_PIN, LOW);
+
+    #ifdef NEOPIXEL
+      pixels.setPixelColor(0, pixels.Color(0, 0, 150));
+      pixels.show();
+    #endif
+
     return true;
   }
 }
@@ -312,8 +339,16 @@ void checkMotorFaults(){
 //******************************************************************************
 
 void setup() {
-  pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, HIGH);  //NOTE on boot the led inidicate power, once connects with ethernet goes off
+  // neopixel
+  #ifdef NEOPIXEL
+    pixels.begin();
+    pixels.setBrightness(20);
+    pixels.clear();
+    pixels.show();
+
+    pixels.setPixelColor(0, pixels.Color(150, 150, 0));
+    pixels.show();
+  #endif
 
   #ifdef SERIAL_DEBUGING
     Serial.begin(SERIAL_SPEED);
@@ -427,6 +462,11 @@ void setup() {
 
   //TODO test osc after loosing connection and reconnecting
   Udp.begin(localPort);
+
+  #ifdef NEOPIXEL
+    pixels.setPixelColor(0, pixels.Color(0, 150, 0));
+    pixels.show();
+  #endif
 }
 
 
@@ -439,7 +479,18 @@ void loop() {
 
     isLANconnected = checkEthernetConnection();
     if (isLANconnected){
+
+      #ifdef NEOPIXEL
+        pixels.setPixelColor(0, pixels.Color(0, 255, 150));
+        pixels.show();
+      #endif
+      
       sendOSCreport();
+
+      #ifdef NEOPIXEL
+        pixels.setPixelColor(0, pixels.Color(0, 0, 150));
+        pixels.show();
+      #endif
     }
     Serial.println(stepper1.currentPosition());
     Serial.println(stepper2.currentPosition());
