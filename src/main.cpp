@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 220
+#define FIRMWARE_VERSION 223
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -11,19 +11,19 @@
 #define SERIAL_DEBUGING
 
 //-------------------------------- pins definition -----------------------------
-#define LED_PIN 6
+#define LED_PIN 2
 
 // Focus
-#define MOTOR1DIR_PIN 33
-#define MOTOR1STEP_PIN 34
+#define MOTOR1DIR_PIN 15
+#define MOTOR1STEP_PIN 14
 
 // Aperture
-#define MOTOR2DIR_PIN 39
-#define MOTOR2STEP_PIN 40
+#define MOTOR2DIR_PIN 22
+#define MOTOR2STEP_PIN 21
 
 // Zoom
-#define MOTOR3DIR_PIN 20
-#define MOTOR3STEP_PIN 21
+#define MOTOR3DIR_PIN 5
+#define MOTOR3STEP_PIN 6
 
 #define ENCODER_N 3 //Number limit of the encoder
 #define INT_PIN 17 // Definition of the encoder interrupt pin
@@ -33,8 +33,8 @@
 #define SERIAL_SPEED 115200
 
 // encoders settings
-#define potStep 1
-#define potMax 100
+#define potStep 10
+#define potMax 1000
 
 
 //------------------------------------------------------------------------------
@@ -234,9 +234,9 @@ void receiveOSCsingle(){
     // route messages
     if(!msgIn.hasError()) {
       // TODO add dynamic device number based on setting
-      msgIn.route("/device1/servo/1", servo1_OSCHandler);
-      msgIn.route("/device1/servo/2", servo2_OSCHandler);
-      msgIn.route("/device1/servo/3", servo3_OSCHandler);
+      msgIn.route("/camera1/servo/1", servo1_OSCHandler);
+      msgIn.route("/camera1/servo/2", servo2_OSCHandler);
+      msgIn.route("/camera1/servo/3", servo3_OSCHandler);
       // msgIn.route("/device1/localise", localise_OSCHandler);
     }
 
