@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 223
+#define FIRMWARE_VERSION 224
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -16,14 +16,16 @@
 // Focus
 #define MOTOR1DIR_PIN 15
 #define MOTOR1STEP_PIN 14
+#define MOTOR1FAULT 16
 
 // Aperture
 #define MOTOR2DIR_PIN 22
 #define MOTOR2STEP_PIN 21
-
+#define MOTOR2FAULT 20
 // Zoom
 #define MOTOR3DIR_PIN 5
 #define MOTOR3STEP_PIN 6
+#define MOTOR3FAULT 7
 
 #define ENCODER_N 3 //Number limit of the encoder
 #define INT_PIN 17 // Definition of the encoder interrupt pin
@@ -300,6 +302,12 @@ bool checkEthernetConnection(){
   }
 }
 
+void checkMotorFaults(){
+  Serial.print("Motor 1 fault: "); Serial.println(digitalRead(MOTOR1FAULT));
+  Serial.print("Motor 2 fault: "); Serial.println(digitalRead(MOTOR2FAULT));
+  Serial.print("Motor 3 fault: "); Serial.println(digitalRead(MOTOR3FAULT));
+}
+
 //******************************************************************************
 
 void setup() {
@@ -363,6 +371,10 @@ void setup() {
   #ifdef SERIAL_DEBUGING
     Serial.println("initializing steppers");
   #endif
+
+  pinMode(MOTOR1FAULT, INPUT);
+  pinMode(MOTOR2FAULT, INPUT);
+  pinMode(MOTOR3FAULT, INPUT);
 
   stepper1.setMaxSpeed(500);
   stepper1.setAcceleration(200);
@@ -431,6 +443,8 @@ void loop() {
     Serial.println(stepper1.currentPosition());
     Serial.println(stepper2.currentPosition());
     Serial.println(stepper3.currentPosition());
+
+    checkMotorFaults();
   }
 
   // check pots
