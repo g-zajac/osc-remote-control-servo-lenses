@@ -303,9 +303,10 @@ bool checkEthernetConnection(){
 }
 
 void checkMotorFaults(){
-  Serial.print("Motor 1 fault: "); Serial.println(digitalRead(MOTOR1FAULT));
-  Serial.print("Motor 2 fault: "); Serial.println(digitalRead(MOTOR2FAULT));
-  Serial.print("Motor 3 fault: "); Serial.println(digitalRead(MOTOR3FAULT));
+  Serial.print("Motors faults reading: ");
+  Serial.print(digitalRead(MOTOR1FAULT));
+  Serial.print(digitalRead(MOTOR2FAULT));
+  Serial.println(digitalRead(MOTOR3FAULT));
 }
 
 //******************************************************************************
