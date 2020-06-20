@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 225
+#define FIRMWARE_VERSION 226
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -10,6 +10,7 @@
 // Enable/Disable modules
 #define SERIAL_DEBUGING
 #define NEOPIXEL
+#define WEB_SERVER
 
 //-------------------------------- pins definition -----------------------------
 // Focus
@@ -116,6 +117,13 @@ long uptime = 0;
 
 char osc_prefix[16];                  // device OSC prefix message, i.e /camera1
 
+
+#ifdef WEB_SERVER
+  EthernetServer server(80);
+  String readString;
+  int potsPositionsArray[] = {0,0,0};
+#endif
+
 #ifdef NEOPIXEL
   Adafruit_NeoPixel pixels(NUMPIXELS, PIXEL_PIN, NEO_GRB + NEO_KHZ800);
 #endif
@@ -169,6 +177,10 @@ void encoder_rotated(i2cEncoderLibV2* obj) {
   obj->writeRGBCode(0x00FF00);
 
   moveMotorToPosition(motorID, position);
+
+  // #ifdef WEB_SERVER
+  //   potsPositionsArray[motorID] = position;
+  // #endif
 }
 
 void encoder_click(i2cEncoderLibV2* obj) {
@@ -460,8 +472,12 @@ void setup() {
     Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
   #endif
 
-  //TODO test osc after loosing connection and reconnecting
+  //TODO add ifconnected condition
   Udp.begin(localPort);
+
+  #ifdef WEB_SERVER
+    server.begin();                       			   // start to listen for clients
+  #endif
 
   #ifdef NEOPIXEL
     pixels.setPixelColor(0, pixels.Color(0, 150, 0));
@@ -484,8 +500,8 @@ void loop() {
         pixels.setPixelColor(0, pixels.Color(0, 255, 150));
         pixels.show();
       #endif
-      
-      sendOSCreport();
+
+      // sendOSCreport();
 
       #ifdef NEOPIXEL
         pixels.setPixelColor(0, pixels.Color(0, 0, 150));
@@ -514,4 +530,155 @@ void loop() {
   stepper1.run();
   stepper2.run();
   stepper3.run();
+
+
+  #ifdef WEB_SERVER
+  // Create a client connection
+  EthernetClient client = server.available();
+  if (client) {
+    while (client.connected()) {
+      if (client.available()) {
+        #ifdef NEOPIXEL
+          pixels.setPixelColor(0, pixels.Color(0, 0, 255));
+          pixels.show();
+        #endif
+
+        char c = client.read();
+
+        //read char by char HTTP request
+        if (readString.length() < 100) {
+          //store characters to string
+          readString += c;
+          //Serial.print(c);
+         }
+
+         //if HTTP request has ended
+         if (c == '\n') {
+           Serial.println(readString); //print to serial monitor for debuging
+
+           client.println("HTTP/1.1 200 OK"); //send new page
+           client.println("Content-Type: text/html");
+           // client.println("<meta http-equiv=\"refresh\" content=>'0;url=http://arduino.cc/'");
+           client.println("Refresh: 3;URL='//10.0.10.240/'>");
+           client.println("Connection: close");
+           // client.println("Refresh: 3");
+           client.println();
+           client.println("<!DOCTYPE HTML>");
+           client.println("<HTML>");
+           client.println("<HEAD>");
+           client.println("<TITLE>Camera Lens Controler</TITLE>");
+           client.println("</HEAD>");
+           client.println("<BODY>");
+           client.println("<H1>SSP Camera Lens controler</H1>");
+           client.println("<hr />");
+           client.println("<br />");
+           client.println("<h3><a href=\"/?buttonIDclicked\"\">Device ID:</a>");
+           client.print(DEVICE_ID); client.println("</h3>");
+           client.println("<br />");
+           client.print("Firmware version: ");
+           client.println(FIRMWARE_VERSION);
+           client.println("<br />");
+           client.println("IP address: ");
+           client.println(Ethernet.localIP());
+           client.println("<br />");
+           client.print("uptime: ");
+           client.print(uptimeInSecs());
+           client.println(" secs");
+           client.println("<br />");
+
+           // client.print("knob 1 position: "); client.print(potsPositionsArray[0]);
+           // client.print("knob 2 position: "); client.print(potsPositionsArray[1]);
+           // client.print("knob 3 position: "); client.print(potsPositionsArray[2]);
+
+           client.println("<br />");
+
+           // client.println("<ul>");
+           //   client.println("<li>");
+           //   client.print("stepper 1 position: "); client.print(stepper1.currentPosition());
+           //   client.println("</li>");
+           //   client.println("<li>");
+           //   client.print("stepper 2 position: "); client.print(stepper2.currentPosition());
+           //   client.println("</li>");
+           //   client.println("<li>");
+           //   client.print("stepper 3 position: "); client.print(stepper3.currentPosition());
+           //   client.println("</li>");
+           // client.println("</ul");
+
+           client.println("<br />");
+
+
+           client.println("<br />");
+           client.println("<a href=\"/?button0clicked\"\"><button class='button' type='button'>Set Servos @ 0</button></a>");
+           client.println("<a href=\"/?button90clicked\"\"><button class='button' type='button'>Set Servos @ 90</button></a>");
+           client.println("<a href=\"/?button180clicked\"\"><button class='button' type='button'>Set Servos @ 180</button></a>");
+           client.println("<br />");
+
+
+           client.println("<br />");
+           client.println("</BODY>");
+           client.println("</HTML>");
+
+           client.println("<style type='text/css'>");
+             client.println("body {background-color: #222222; color: #fefefe; font-family:  Helvetica, Arial, sans-serif; font-weight: lighter;}");
+             client.println("h1 {color: #104bab}");
+             client.println("h3 {color: #ff5620}");
+
+             client.println(".button {background-color: #222222; color: white; border: 1px solid #104bab; border-radius: 2px; padding: 15px 32px; margin: 4px 2px; font-size: 16px; cursor: pointer;}");
+
+           client.println("</style>");
+
+           delay(1);
+           //stopping client
+           client.stop();
+           //controls the Arduino if you press the buttons
+
+           if (readString.indexOf("?button0clicked") >0 ){
+             #ifdef SERIAL_DEBUGING
+               Serial.println("Web button pressed, setting servos @ 0");
+             #endif
+             moveMotorToPosition(0,0);
+             moveMotorToPosition(1,0);
+             moveMotorToPosition(2,0);
+           }
+           if (readString.indexOf("?button90clicked") >0){
+             #ifdef SERIAL_DEBUGING
+               Serial.println("Web button pressed, setting servos @ 90");
+             #endif
+             moveMotorToPosition(0,500);
+             moveMotorToPosition(1,500);
+             moveMotorToPosition(2,500);
+           }
+           if (readString.indexOf("?button180clicked") >0){
+             #ifdef SERIAL_DEBUGING
+               Serial.println("Web button pressed, setting servos @ 90");
+             #endif
+             moveMotorToPosition(0,1000);
+             moveMotorToPosition(1,1000);
+             moveMotorToPosition(2,1000);
+           }
+           if (readString.indexOf("?buttonIDclicked") >0){
+             #ifdef SERIAL_DEBUGING
+               Serial.println("Web button pressed, identifing unit with LED");
+             #endif
+             #ifdef NEOPIXEL
+               pixels.setPixelColor(0, pixels.Color(150, 150, 150));
+               pixels.setBrightness(50);
+               pixels.show();
+               delay(500);
+               pixels.clear();
+               pixels.show();
+             #endif
+           }
+            //clearing string for next read
+            readString="";
+         }
+          #ifdef NEOPIXEL
+           pixels.clear();
+           pixels.show();
+          #endif
+       }
+    }
+  }                      			   // start to listen for clients
+  #endif
+
 }
