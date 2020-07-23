@@ -1,16 +1,16 @@
-#define FIRMWARE_VERSION 226
+#define FIRMWARE_VERSION 227
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
 
-// ****************
+// *********************
 #define DEVICE_ID 0
-// ****************
+// *********************
 
 // Enable/Disable modules
 #define SERIAL_DEBUGING
 #define NEOPIXEL
-#define WEB_SERVER
+// #define WEB_SERVER
 
 //-------------------------------- pins definition -----------------------------
 // Focus
@@ -37,7 +37,7 @@
 #define SERIAL_SPEED 115200
 
 // encoders settings
-#define potStep 10
+#define potStep 1
 #define potMax 1000
 
 
@@ -75,7 +75,7 @@ AccelStepper stepper3(AccelStepper::DRIVER, MOTOR3STEP_PIN, MOTOR3DIR_PIN);
 //------------------------------ I2C encoders ----------------------------------
 // Connections:
 // - -> GND
-// + -> 5V
+// + -> 3V3V
 // SDA -> A4
 // SCL -> A5
 // INT -> 3 temporary for tests
@@ -213,7 +213,7 @@ void servo1_OSCHandler(OSCMessage &msg, int addrOffset) {
     Serial.print("osc servo 1 update: ");
     Serial.println(inValue);
   #endif
-
+  // TODO convert float to int?
   RGBEncoder[0].writeCounter((int32_t) inValue); //Reset of the CVAL register
   moveMotorToPosition(1, inValue);
 }
@@ -279,6 +279,12 @@ void sendOSCmessage(char* name, int value){
   message_osc_header[0] = {0};
   strcat(message_osc_header, osc_prefix);
   strcat(message_osc_header, name);
+
+  #ifdef SERIAL_DEBUGING
+    Serial.print("OSC header: ");
+    Serial.println(message_osc_header);
+  #endif
+
   OSCMessage message(message_osc_header);
   message.add(value);
   Udp.beginPacket(targetIP, destPort);
@@ -341,12 +347,12 @@ bool checkEthernetConnection(){
   }
 }
 
-void checkMotorFaults(){
-  Serial.print("Motors faults reading: ");
-  Serial.print(digitalRead(MOTOR1FAULT));
-  Serial.print(digitalRead(MOTOR2FAULT));
-  Serial.println(digitalRead(MOTOR3FAULT));
-}
+// void checkMotorFaults(){
+//   Serial.print("Motors faults reading: ");
+//   Serial.print(digitalRead(MOTOR1FAULT));
+//   Serial.print(digitalRead(MOTOR2FAULT));
+//   Serial.println(digitalRead(MOTOR3FAULT));
+// }
 
 //******************************************************************************
 
@@ -430,8 +436,8 @@ void setup() {
   stepper2.setMaxSpeed(500);
   stepper2.setAcceleration(200);
 
-  stepper3.setMaxSpeed(500);
-  stepper3.setAcceleration(200);
+  stepper3.setMaxSpeed(5000);
+  stepper3.setAcceleration(5000);
 
 //-------------------------- Initializing ethernet -----------------------------
   pinMode(9, OUTPUT);
@@ -487,6 +493,7 @@ void setup() {
 
 
 void loop() {
+
   receiveOSCsingle();
 
   unsigned long currentMillis = millis();
@@ -501,18 +508,19 @@ void loop() {
         pixels.show();
       #endif
 
-      // sendOSCreport();
+      sendOSCreport();
 
       #ifdef NEOPIXEL
         pixels.setPixelColor(0, pixels.Color(0, 0, 150));
         pixels.show();
       #endif
     }
+
     Serial.println(stepper1.currentPosition());
     Serial.println(stepper2.currentPosition());
     Serial.println(stepper3.currentPosition());
 
-    checkMotorFaults();
+    // checkMotorFaults();
   }
 
   // check pots
