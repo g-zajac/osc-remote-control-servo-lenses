@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 250
+#define FIRMWARE_VERSION 251
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -27,6 +27,7 @@
 
 #define ENCODER_N 3 //Number limit of the encoder
 #define INT_PIN 17 // Definition of the encoder interrupt pin
+#define POT_CHECK 4
 
 #define PIXEL_PIN 6
 #define NUMPIXELS 1
