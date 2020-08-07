@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 227
+#define FIRMWARE_VERSION 250
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -14,23 +14,21 @@
 
 //-------------------------------- pins definition -----------------------------
 // Focus
-#define MOTOR1DIR_PIN 15
-#define MOTOR1STEP_PIN 14
-#define MOTOR1FAULT 16
+#define MOTOR1DIR_PIN 20
+#define MOTOR1STEP_PIN 16
 
 // Aperture
 #define MOTOR2DIR_PIN 22
 #define MOTOR2STEP_PIN 21
-#define MOTOR2FAULT 20
+
 // Zoom
-#define MOTOR3DIR_PIN 5
-#define MOTOR3STEP_PIN 6
-#define MOTOR3FAULT 7
+#define MOTOR3DIR_PIN 15
+#define MOTOR3STEP_PIN 14
 
 #define ENCODER_N 3 //Number limit of the encoder
 #define INT_PIN 17 // Definition of the encoder interrupt pin
 
-#define PIXEL_PIN 2
+#define PIXEL_PIN 6
 #define NUMPIXELS 1
 
 //-------------------------------- settings ------------------------------------
@@ -107,7 +105,7 @@ bool isLANconnected = false;
 EthernetUDP Udp;
 
 // OSC destination address, 255 broadcast
-IPAddress targetIP(10, 0, 10, 101);   // Isadora machine IP address
+IPAddress targetIP(10, 0, 10, 102);   // Isadora machine IP address
 const unsigned int destPort = 9999;          // remote port to receive OSC
 const unsigned int localPort = 8888;        // local port to listen for OSC packets
 
@@ -347,13 +345,6 @@ bool checkEthernetConnection(){
   }
 }
 
-// void checkMotorFaults(){
-//   Serial.print("Motors faults reading: ");
-//   Serial.print(digitalRead(MOTOR1FAULT));
-//   Serial.print(digitalRead(MOTOR2FAULT));
-//   Serial.println(digitalRead(MOTOR3FAULT));
-// }
-
 //******************************************************************************
 
 void setup() {
@@ -388,7 +379,7 @@ void setup() {
   pinMode(INT_PIN, INPUT);
 
   Wire.begin();
-  //Reset of all the encoder
+  // Reset of all the encoder
   for (enc_cnt = 0; enc_cnt < ENCODER_N; enc_cnt++) {
     RGBEncoder[enc_cnt].reset();
   }
@@ -419,16 +410,13 @@ void setup() {
     /* Enable the I2C Encoder V2 interrupts according to the previus attached callback */
     RGBEncoder[enc_cnt].autoconfigInterrupt();
     RGBEncoder[enc_cnt].id = enc_cnt;
+
   }
 
 //-------------------------- Initializing steppers -----------------------------
   #ifdef SERIAL_DEBUGING
     Serial.println("initializing steppers");
   #endif
-
-  pinMode(MOTOR1FAULT, INPUT);
-  pinMode(MOTOR2FAULT, INPUT);
-  pinMode(MOTOR3FAULT, INPUT);
 
   stepper1.setMaxSpeed(500);
   stepper1.setAcceleration(200);
