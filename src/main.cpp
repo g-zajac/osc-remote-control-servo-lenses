@@ -1,42 +1,41 @@
-#define FIRMWARE_VERSION 225
+#define FIRMWARE_VERSION 250
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
 
-// ****************
+// *********************
 #define DEVICE_ID 0
-// ****************
+// *********************
 
 // Enable/Disable modules
 #define SERIAL_DEBUGING
 #define NEOPIXEL
+// #define WEB_SERVER
 
 //-------------------------------- pins definition -----------------------------
 // Focus
-#define MOTOR1DIR_PIN 15
-#define MOTOR1STEP_PIN 14
-#define MOTOR1FAULT 16
+#define MOTOR1DIR_PIN 20
+#define MOTOR1STEP_PIN 16
 
 // Aperture
 #define MOTOR2DIR_PIN 22
 #define MOTOR2STEP_PIN 21
-#define MOTOR2FAULT 20
+
 // Zoom
-#define MOTOR3DIR_PIN 5
-#define MOTOR3STEP_PIN 6
-#define MOTOR3FAULT 7
+#define MOTOR3DIR_PIN 15
+#define MOTOR3STEP_PIN 14
 
 #define ENCODER_N 3 //Number limit of the encoder
 #define INT_PIN 17 // Definition of the encoder interrupt pin
 
-#define PIXEL_PIN 2
+#define PIXEL_PIN 6
 #define NUMPIXELS 1
 
 //-------------------------------- settings ------------------------------------
 #define SERIAL_SPEED 115200
 
 // encoders settings
-#define potStep 10
+#define potStep 1
 #define potMax 1000
 
 
@@ -74,7 +73,7 @@ AccelStepper stepper3(AccelStepper::DRIVER, MOTOR3STEP_PIN, MOTOR3DIR_PIN);
 //------------------------------ I2C encoders ----------------------------------
 // Connections:
 // - -> GND
-// + -> 5V
+// + -> 3V3V
 // SDA -> A4
 // SCL -> A5
 // INT -> 3 temporary for tests
@@ -106,7 +105,7 @@ bool isLANconnected = false;
 EthernetUDP Udp;
 
 // OSC destination address, 255 broadcast
-IPAddress targetIP(10, 0, 10, 101);   // Isadora machine IP address
+IPAddress targetIP(10, 0, 10, 102);   // Isadora machine IP address
 const unsigned int destPort = 9999;          // remote port to receive OSC
 const unsigned int localPort = 8888;        // local port to listen for OSC packets
 
@@ -115,6 +114,13 @@ const long interval = 1000;
 long uptime = 0;
 
 char osc_prefix[16];                  // device OSC prefix message, i.e /camera1
+
+
+#ifdef WEB_SERVER
+  EthernetServer server(80);
+  String readString;
+  // int potsPositionsArray[] = {0,0,0};
+#endif
 
 #ifdef NEOPIXEL
   Adafruit_NeoPixel pixels(NUMPIXELS, PIXEL_PIN, NEO_GRB + NEO_KHZ800);
@@ -169,6 +175,10 @@ void encoder_rotated(i2cEncoderLibV2* obj) {
   obj->writeRGBCode(0x00FF00);
 
   moveMotorToPosition(motorID, position);
+
+  // #ifdef WEB_SERVER
+  //   potsPositionsArray[motorID] = position;
+  // #endif
 }
 
 void encoder_click(i2cEncoderLibV2* obj) {
@@ -201,7 +211,7 @@ void servo1_OSCHandler(OSCMessage &msg, int addrOffset) {
     Serial.print("osc servo 1 update: ");
     Serial.println(inValue);
   #endif
-
+  // TODO convert float to int?
   RGBEncoder[0].writeCounter((int32_t) inValue); //Reset of the CVAL register
   moveMotorToPosition(1, inValue);
 }
@@ -267,6 +277,12 @@ void sendOSCmessage(char* name, int value){
   message_osc_header[0] = {0};
   strcat(message_osc_header, osc_prefix);
   strcat(message_osc_header, name);
+
+  #ifdef SERIAL_DEBUGING
+    Serial.print("OSC header: ");
+    Serial.println(message_osc_header);
+  #endif
+
   OSCMessage message(message_osc_header);
   message.add(value);
   Udp.beginPacket(targetIP, destPort);
@@ -329,13 +345,6 @@ bool checkEthernetConnection(){
   }
 }
 
-void checkMotorFaults(){
-  Serial.print("Motors faults reading: ");
-  Serial.print(digitalRead(MOTOR1FAULT));
-  Serial.print(digitalRead(MOTOR2FAULT));
-  Serial.println(digitalRead(MOTOR3FAULT));
-}
-
 //******************************************************************************
 
 void setup() {
@@ -370,7 +379,7 @@ void setup() {
   pinMode(INT_PIN, INPUT);
 
   Wire.begin();
-  //Reset of all the encoder
+  // Reset of all the encoder
   for (enc_cnt = 0; enc_cnt < ENCODER_N; enc_cnt++) {
     RGBEncoder[enc_cnt].reset();
   }
@@ -401,6 +410,7 @@ void setup() {
     /* Enable the I2C Encoder V2 interrupts according to the previus attached callback */
     RGBEncoder[enc_cnt].autoconfigInterrupt();
     RGBEncoder[enc_cnt].id = enc_cnt;
+
   }
 
 //-------------------------- Initializing steppers -----------------------------
@@ -408,18 +418,14 @@ void setup() {
     Serial.println("initializing steppers");
   #endif
 
-  pinMode(MOTOR1FAULT, INPUT);
-  pinMode(MOTOR2FAULT, INPUT);
-  pinMode(MOTOR3FAULT, INPUT);
-
   stepper1.setMaxSpeed(500);
   stepper1.setAcceleration(200);
 
   stepper2.setMaxSpeed(500);
   stepper2.setAcceleration(200);
 
-  stepper3.setMaxSpeed(500);
-  stepper3.setAcceleration(200);
+  stepper3.setMaxSpeed(5000);
+  stepper3.setAcceleration(5000);
 
 //-------------------------- Initializing ethernet -----------------------------
   pinMode(9, OUTPUT);
@@ -460,8 +466,12 @@ void setup() {
     Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
   #endif
 
-  //TODO test osc after loosing connection and reconnecting
+  //TODO add ifconnected condition
   Udp.begin(localPort);
+
+  #ifdef WEB_SERVER
+    server.begin();                       			   // start to listen for clients
+  #endif
 
   #ifdef NEOPIXEL
     pixels.setPixelColor(0, pixels.Color(0, 150, 0));
@@ -471,6 +481,7 @@ void setup() {
 
 
 void loop() {
+
   receiveOSCsingle();
 
   unsigned long currentMillis = millis();
@@ -484,7 +495,7 @@ void loop() {
         pixels.setPixelColor(0, pixels.Color(0, 255, 150));
         pixels.show();
       #endif
-      
+
       sendOSCreport();
 
       #ifdef NEOPIXEL
@@ -492,11 +503,12 @@ void loop() {
         pixels.show();
       #endif
     }
+
     Serial.println(stepper1.currentPosition());
     Serial.println(stepper2.currentPosition());
     Serial.println(stepper3.currentPosition());
 
-    checkMotorFaults();
+    // checkMotorFaults();
   }
 
   // check pots
@@ -514,4 +526,39 @@ void loop() {
   stepper1.run();
   stepper2.run();
   stepper3.run();
+
+
+  #ifdef WEB_SERVER
+  EthernetClient client = server.available();
+  if (client) {
+    boolean currentLineIsBlank = true;
+    while (client.connected()) {
+      if (client.available()) {
+        char c = client.read();
+        Serial.write(c);
+        if (c == 'n' && currentLineIsBlank) {
+        client.println("HTTP/1.1 200 OK");
+        client.println("Content-Type: text/html");
+        client.println("Connection: close");
+        client.println("Refresh: 5");
+        client.println();
+        client.println("<!DOCTYPE HTML>");
+        client.println("<html>");
+        client.println("<title>Example</title>");
+        client.print("<p>Hello World</p>");
+        client.println("</html>");
+        break;
+      }
+      if (c == 'n') {
+        currentLineIsBlank = true;
+      } else if (c != 'r') {
+        currentLineIsBlank = false;
+      }
+    }
+  }
+    delay(1);
+    client.stop();
+  }                   			   // start to listen for clients
+  #endif
+
 }
