@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 253
+#define FIRMWARE_VERSION 254
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -87,7 +87,7 @@ i2cEncoderLibV2 RGBEncoder[ENCODER_N] = { i2cEncoderLibV2(0x01),
 uint8_t encoder_status, i;
 
 //---------------------------- MAC & IP list ----------------------------------
-// id stored in EEPROM, id points on array index
+// id stored in EEPROM, id points on array index and
 // assign MAC and IP for device, they mus be unique within the netowrk
 
 byte MAC_ARRAY[] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07};
@@ -109,7 +109,7 @@ bool isLANconnected = false;
 EthernetUDP Udp;
 
 // OSC destination address, 255 broadcast
-IPAddress targetIP(10, 0, 10, 101);   // Isadora machine IP address
+IPAddress targetIP(10, 0, 10, 102);   // Isadora machine IP address
 const unsigned int destPort = 9999;          // remote port to receive OSC
 const unsigned int localPort = 8888;        // local port to listen for OSC packets
 
@@ -257,9 +257,9 @@ void receiveOSCsingle(){
     // route messages
     if(!msgIn.hasError()) {
       // TODO add dynamic device number based on setting
-      msgIn.route("/camera1/servo/1", servo1_OSCHandler);
-      msgIn.route("/camera1/servo/2", servo2_OSCHandler);
-      msgIn.route("/camera1/servo/3", servo3_OSCHandler);
+      msgIn.route("/servo/1", servo1_OSCHandler);
+      msgIn.route("/servo/2", servo2_OSCHandler);
+      msgIn.route("/servo/3", servo3_OSCHandler);
       // msgIn.route("/device1/localise", localise_OSCHandler);
 
       #ifdef NEOPIXEL
