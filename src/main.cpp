@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 257
+#define FIRMWARE_VERSION 258
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -10,7 +10,7 @@
 // Enable/Disable modules
 #define SERIAL_DEBUGING
 #define NEOPIXEL
-// #define WEB_SERVER
+#define WEB_SERVER
 
 //-------------------------------- pins definition -----------------------------
 
@@ -570,36 +570,36 @@ void loop() {
   stepper3.run();
 
 
-  // #ifdef WEB_SERVER
-  // EthernetClient client = server.available();
-  // if (client) {
-  //   boolean currentLineIsBlank = true;
-  //   while (client.connected()) {
-  //     if (client.available()) {
-  //       char c = client.read();
-  //       Serial.write(c);
-  //       if (c == 'n' && currentLineIsBlank) {
-  //       client.println("HTTP/1.1 200 OK");
-  //       client.println("Content-Type: text/html");
-  //       client.println("Connection: close");
-  //       client.println("Refresh: 5");
-  //       client.println();
-  //       client.println("<!DOCTYPE HTML>");
-  //       client.println("<html>");
-  //       client.println("<title>Example</title>");
-  //       client.print("<p>Hello World</p>");
-  //       client.println("</html>");
-  //       break;
-  //     }
-  //     if (c == 'n') {
-  //       currentLineIsBlank = true;
-  //     } else if (c != 'r') {
-  //       currentLineIsBlank = false;
-  //     }
-  //   }
-  // }
-  //   delay(1);
-  //   client.stop();
-  // }                   			   // start to listen for clients
-  // #endif
+  #ifdef WEB_SERVER
+  EthernetClient client = server.available();
+  if (client) {
+    boolean currentLineIsBlank = true;
+    while (client.connected()) {
+      if (client.available()) {
+        char c = client.read();
+        Serial.write(c);
+        if (c == 'n' && currentLineIsBlank) {
+        client.println("HTTP/1.1 200 OK");
+        client.println("Content-Type: text/html");
+        client.println("Connection: close");
+        client.println("Refresh: 5");
+        client.println();
+        client.println("<!DOCTYPE HTML>");
+        client.println("<html>");
+        client.println("<title>Example</title>");
+        client.print("<p>Hello World</p>");
+        client.println("</html>");
+        break;
+      }
+      if (c == 'n') {
+        currentLineIsBlank = true;
+      } else if (c != 'r') {
+        currentLineIsBlank = false;
+      }
+    }
+  }
+    delay(1);
+    client.stop();
+  }                   			   // start to listen for clients
+  #endif
 }
