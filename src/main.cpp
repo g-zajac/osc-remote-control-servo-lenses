@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 255
+#define FIRMWARE_VERSION 257
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -45,6 +45,7 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include <Ethernet.h>
+#include <EthernetBonjour.h>
 
 #include <OSCMessage.h>
 
@@ -466,10 +467,17 @@ void setup() {
   osc_prefix[0] = {0};
   strcat(osc_prefix, "/camera");
 
-  char buf[8];
-  sprintf(buf, "%d", device_id);
-  strcat(osc_prefix, buf);
+  char id[8];
+  sprintf(id, "%d", device_id);
+  strcat(osc_prefix, id);
 
+  // Bonjour name
+  char bonjour_name[8] = {0};
+  strcat(bonjour_name, "camera");
+  strcat(bonjour_name, id);
+
+  // temporary for debaging
+  delay(5000);
 
   #ifdef SERIAL_DEBUGING
     Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
@@ -484,9 +492,15 @@ void setup() {
     Serial.println();
     Serial.print("OSC prefix: ");
     Serial.println(osc_prefix);
+    Serial.print("Bonjour name: ");
+    Serial.println(bonjour_name);
     Serial.println();
     Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
   #endif
+
+
+  // Initializing EthernetBonjour
+  EthernetBonjour.begin(bonjour_name);
 
   //TODO add ifconnected condition
   Udp.begin(localPort);
@@ -505,6 +519,7 @@ void setup() {
 //=================================== LOOP =====================================
 
 void loop() {
+  EthernetBonjour.run();
 
   receiveOSCsingle();
 
