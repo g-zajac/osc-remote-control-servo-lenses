@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 254
+#define FIRMWARE_VERSION 255
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -13,13 +13,14 @@
 // #define WEB_SERVER
 
 //-------------------------------- pins definition -----------------------------
-// Focus
-#define MOTOR1DIR_PIN 20
-#define MOTOR1STEP_PIN 16
 
 // Aperture
-#define MOTOR2DIR_PIN 22
-#define MOTOR2STEP_PIN 21
+#define MOTOR1DIR_PIN 22
+#define MOTOR1STEP_PIN 21
+
+// Focus
+#define MOTOR2DIR_PIN 20
+#define MOTOR2STEP_PIN 16
 
 // Zoom
 #define MOTOR3DIR_PIN 15
@@ -28,9 +29,6 @@
 #define ENCODER_N 3 //Number limit of the encoder
 #define INT_PIN 17 // Definition of the encoder interrupt pin
 #define POT_CHECK 4
-
-// temporary for test
-#define REMOTE_CONNECTED false
 
 #define PIXEL_PIN 6
 #define NUMPIXELS 1
@@ -86,6 +84,8 @@ i2cEncoderLibV2 RGBEncoder[ENCODER_N] = { i2cEncoderLibV2(0x01),
                                         };
 uint8_t encoder_status, i;
 
+bool remote_connected = false;
+
 //---------------------------- MAC & IP list ----------------------------------
 // id stored in EEPROM, id points on array index and
 // assign MAC and IP for device, they mus be unique within the netowrk
@@ -109,7 +109,7 @@ bool isLANconnected = false;
 EthernetUDP Udp;
 
 // OSC destination address, 255 broadcast
-IPAddress targetIP(10, 0, 10, 102);   // Isadora machine IP address
+IPAddress targetIP(10, 0, 10, 101);   // Isadora machine IP address
 const unsigned int destPort = 9999;          // remote port to receive OSC
 const unsigned int localPort = 8888;        // local port to listen for OSC packets
 
@@ -216,7 +216,9 @@ void servo1_OSCHandler(OSCMessage &msg, int addrOffset) {
     Serial.println(inValue);
   #endif
   // TODO convert float to int?
-  RGBEncoder[0].writeCounter((int32_t) inValue); //Reset of the CVAL register
+  if (remote_connected){
+    RGBEncoder[0].writeCounter((int32_t) inValue); //Reset of the CVAL register
+  }
   moveMotorToPosition(1, inValue);
 }
 
@@ -227,7 +229,9 @@ void servo2_OSCHandler(OSCMessage &msg, int addrOffset) {
     Serial.println(inValue);
   #endif
 
-  RGBEncoder[1].writeCounter((int32_t) inValue); //Reset of the CVAL register
+  if (remote_connected){
+      RGBEncoder[1].writeCounter((int32_t) inValue); //Reset of the CVAL register
+  }
   moveMotorToPosition(2, inValue);
 }
 
@@ -239,7 +243,9 @@ void servo3_OSCHandler(OSCMessage &msg, int addrOffset) {
     Serial.println(inValue);
   #endif
 
-  RGBEncoder[2].writeCounter((int32_t) inValue); //Reset of the CVAL register
+  if (remote_connected){
+    RGBEncoder[2].writeCounter((int32_t) inValue); //Reset of the CVAL register
+  }
   moveMotorToPosition(3, inValue);
 }
 
@@ -257,9 +263,9 @@ void receiveOSCsingle(){
     // route messages
     if(!msgIn.hasError()) {
       // TODO add dynamic device number based on setting
-      msgIn.route("/servo/1", servo1_OSCHandler);
-      msgIn.route("/servo/2", servo2_OSCHandler);
-      msgIn.route("/servo/3", servo3_OSCHandler);
+      msgIn.route("/aperture", servo1_OSCHandler);
+      msgIn.route("/focus", servo2_OSCHandler);
+      msgIn.route("/zoom", servo3_OSCHandler);
       // msgIn.route("/device1/localise", localise_OSCHandler);
 
       #ifdef NEOPIXEL
@@ -301,9 +307,9 @@ void sendOSCreport(){
   #endif
   sendOSCmessage("/ver", FIRMWARE_VERSION);
   sendOSCmessage("/uptime", uptimeInSecs());
-  sendOSCmessage("/motor1/position", stepper1.currentPosition());
-  sendOSCmessage("/motor2/position", stepper2.currentPosition());
-  sendOSCmessage("/motor3/position", stepper3.currentPosition());
+  sendOSCmessage("/m1position", stepper1.currentPosition());
+  sendOSCmessage("/m2position", stepper2.currentPosition());
+  sendOSCmessage("/m3position", stepper3.currentPosition());
   #ifdef SERIAL_DEBUGING
     Serial.println(" *");
   #endif
@@ -378,6 +384,13 @@ void setup() {
     Serial.println();
   #endif
 
+  // Check if encoders are connected, only on startup, not hotpluging yet
+  pinMode(POT_CHECK, INPUT_PULLUP); // LOW when remote is connected
+  remote_connected = !digitalRead(POT_CHECK);
+
+  // temporary before remote test
+  remote_connected = false;
+
 //-------------------------- Initializing encoders -----------------------------
   #ifdef SERIAL_DEBUGING
     Serial.println("initializing encoders");
@@ -386,7 +399,7 @@ void setup() {
   uint8_t enc_cnt;
   pinMode(INT_PIN, INPUT);
 
-  if (REMOTE_CONNECTED){
+  if (remote_connected){
     Wire.begin();
     // Reset of all the encoder
     for (enc_cnt = 0; enc_cnt < ENCODER_N; enc_cnt++) {
@@ -515,17 +528,17 @@ void loop() {
       #endif
     }
 
-    Serial.println(stepper1.currentPosition());
-    Serial.println(stepper2.currentPosition());
+    Serial.print(stepper1.currentPosition());
+    Serial.print("\t");
+    Serial.print(stepper2.currentPosition());
+    Serial.print("\t");
     Serial.println(stepper3.currentPosition());
-
-    // checkMotorFaults();
   }
 
   // check pots
   uint8_t enc_cnt;
 
-  if (REMOTE_CONNECTED){
+  if (remote_connected){
     if (digitalRead(INT_PIN) == LOW) {
       //Interrupt from the encoders, start to scan the encoder matrix
       for (enc_cnt = 0; enc_cnt < ENCODER_N; enc_cnt++) {
@@ -542,37 +555,36 @@ void loop() {
   stepper3.run();
 
 
-  #ifdef WEB_SERVER
-  EthernetClient client = server.available();
-  if (client) {
-    boolean currentLineIsBlank = true;
-    while (client.connected()) {
-      if (client.available()) {
-        char c = client.read();
-        Serial.write(c);
-        if (c == 'n' && currentLineIsBlank) {
-        client.println("HTTP/1.1 200 OK");
-        client.println("Content-Type: text/html");
-        client.println("Connection: close");
-        client.println("Refresh: 5");
-        client.println();
-        client.println("<!DOCTYPE HTML>");
-        client.println("<html>");
-        client.println("<title>Example</title>");
-        client.print("<p>Hello World</p>");
-        client.println("</html>");
-        break;
-      }
-      if (c == 'n') {
-        currentLineIsBlank = true;
-      } else if (c != 'r') {
-        currentLineIsBlank = false;
-      }
-    }
-  }
-    delay(1);
-    client.stop();
-  }                   			   // start to listen for clients
-  #endif
-
+  // #ifdef WEB_SERVER
+  // EthernetClient client = server.available();
+  // if (client) {
+  //   boolean currentLineIsBlank = true;
+  //   while (client.connected()) {
+  //     if (client.available()) {
+  //       char c = client.read();
+  //       Serial.write(c);
+  //       if (c == 'n' && currentLineIsBlank) {
+  //       client.println("HTTP/1.1 200 OK");
+  //       client.println("Content-Type: text/html");
+  //       client.println("Connection: close");
+  //       client.println("Refresh: 5");
+  //       client.println();
+  //       client.println("<!DOCTYPE HTML>");
+  //       client.println("<html>");
+  //       client.println("<title>Example</title>");
+  //       client.print("<p>Hello World</p>");
+  //       client.println("</html>");
+  //       break;
+  //     }
+  //     if (c == 'n') {
+  //       currentLineIsBlank = true;
+  //     } else if (c != 'r') {
+  //       currentLineIsBlank = false;
+  //     }
+  //   }
+  // }
+  //   delay(1);
+  //   client.stop();
+  // }                   			   // start to listen for clients
+  // #endif
 }
