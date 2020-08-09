@@ -1,11 +1,11 @@
-#define FIRMWARE_VERSION 252
+#define FIRMWARE_VERSION 253
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
 
-// *********************
-#define DEVICE_ID 0
-// *********************
+// ******************************
+// Device ID stored in EEPROM @ 0
+// ******************************
 
 // Enable/Disable modules
 #define SERIAL_DEBUGING
@@ -59,6 +59,8 @@
   #include <Adafruit_NeoPixel.h>
 #endif
 
+#include <EEPROM.h>
+
 //------------------------------ Stepper motors --------------------------------
 // Define a stepper and the pins it will use
 // AccelStepper stepper; // Defaults to AccelStepper::FULL4WIRE (4 pins) on 2, 3, 4, 5
@@ -85,17 +87,20 @@ i2cEncoderLibV2 RGBEncoder[ENCODER_N] = { i2cEncoderLibV2(0x01),
 uint8_t encoder_status, i;
 
 //---------------------------- MAC & IP list ----------------------------------
-// Change #define DEVICE_ID to a number from 0 to 7 on top of the code to
+// id stored in EEPROM, id points on array index
 // assign MAC and IP for device, they mus be unique within the netowrk
 
 byte MAC_ARRAY[] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07};
 int IP_ARRAY[] = {240, 241, 242, 243, 244, 245, 246, 247};
 //-----------------------------------------------------------------------------
 
+// get the device ID from EEPROM
+int device_id = EEPROM.read(0);
+
 byte mac[] = {
-  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, MAC_ARRAY[DEVICE_ID]
+  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, MAC_ARRAY[device_id]
 };
-IPAddress ip(10, 0, 10, IP_ARRAY[DEVICE_ID]);
+IPAddress ip(10, 0, 10, IP_ARRAY[device_id]);
 
 bool isLANconnected = false;
 // bool isUDPconnected = false;
@@ -362,10 +367,14 @@ void setup() {
     Serial.begin(SERIAL_SPEED);
   #endif
 
+  // for debaging, wait for serial
+  // while (!Serial){}
+
   #ifdef SERIAL_DEBUGING
     Serial.print("\r\nFirmware Ver: "); Serial.print(FIRMWARE_VERSION);
     Serial.println(" written by Grzegorz Zajac");
     Serial.println("Compiled: " __DATE__ ", " __TIME__ ", " __VERSION__);
+    Serial.print("Device ID "); Serial.println(device_id);
     Serial.println();
   #endif
 
@@ -445,7 +454,7 @@ void setup() {
   strcat(osc_prefix, "/camera");
 
   char buf[8];
-  sprintf(buf, "%d", DEVICE_ID);
+  sprintf(buf, "%d", device_id);
   strcat(osc_prefix, buf);
 
 
