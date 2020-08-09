@@ -1,11 +1,11 @@
-#define FIRMWARE_VERSION 250
+#define FIRMWARE_VERSION 257
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
 
-// *********************
-#define DEVICE_ID 0
-// *********************
+// ******************************
+// Device ID stored in EEPROM @ 0
+// ******************************
 
 // Enable/Disable modules
 #define SERIAL_DEBUGING
@@ -13,13 +13,14 @@
 // #define WEB_SERVER
 
 //-------------------------------- pins definition -----------------------------
-// Focus
-#define MOTOR1DIR_PIN 20
-#define MOTOR1STEP_PIN 16
 
 // Aperture
-#define MOTOR2DIR_PIN 22
-#define MOTOR2STEP_PIN 21
+#define MOTOR1DIR_PIN 22
+#define MOTOR1STEP_PIN 21
+
+// Focus
+#define MOTOR2DIR_PIN 20
+#define MOTOR2STEP_PIN 16
 
 // Zoom
 #define MOTOR3DIR_PIN 15
@@ -27,6 +28,7 @@
 
 #define ENCODER_N 3 //Number limit of the encoder
 #define INT_PIN 17 // Definition of the encoder interrupt pin
+#define POT_CHECK 4
 
 #define PIXEL_PIN 6
 #define NUMPIXELS 1
@@ -43,6 +45,7 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include <Ethernet.h>
+#include <EthernetBonjour.h>
 
 #include <OSCMessage.h>
 
@@ -55,12 +58,9 @@
   #include <Adafruit_NeoPixel.h>
 #endif
 
-//------------------------------ Stepper motors --------------------------------
-// Bipolar motor, converted 28BYJ-48 with DRV8834 driver
-// 28BYJ-48 motor runs in full step mode, each step corresponds to a rotation of 11.25°.
-// That means there are 32 steps per revolution (360°/11.25° = 32). What this means is that
-// there are actually 32*63.68395 steps per revolution = 2037.8864 ~ 2038 steps!
+#include <EEPROM.h>
 
+//------------------------------ Stepper motors --------------------------------
 // Define a stepper and the pins it will use
 // AccelStepper stepper; // Defaults to AccelStepper::FULL4WIRE (4 pins) on 2, 3, 4, 5
 
@@ -85,18 +85,23 @@ i2cEncoderLibV2 RGBEncoder[ENCODER_N] = { i2cEncoderLibV2(0x01),
                                         };
 uint8_t encoder_status, i;
 
+bool remote_connected = false;
+
 //---------------------------- MAC & IP list ----------------------------------
-// Change #define DEVICE_ID to a number from 0 to 7 on top of the code to
+// id stored in EEPROM, id points on array index and
 // assign MAC and IP for device, they mus be unique within the netowrk
 
 byte MAC_ARRAY[] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07};
 int IP_ARRAY[] = {240, 241, 242, 243, 244, 245, 246, 247};
 //-----------------------------------------------------------------------------
 
+// get the device ID from EEPROM
+int device_id = EEPROM.read(0);
+
 byte mac[] = {
-  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, MAC_ARRAY[DEVICE_ID]
+  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, MAC_ARRAY[device_id]
 };
-IPAddress ip(10, 0, 10, IP_ARRAY[DEVICE_ID]);
+IPAddress ip(10, 0, 10, IP_ARRAY[device_id]);
 
 bool isLANconnected = false;
 // bool isUDPconnected = false;
@@ -105,7 +110,7 @@ bool isLANconnected = false;
 EthernetUDP Udp;
 
 // OSC destination address, 255 broadcast
-IPAddress targetIP(10, 0, 10, 102);   // Isadora machine IP address
+IPAddress targetIP(10, 0, 10, 101);   // Isadora machine IP address
 const unsigned int destPort = 9999;          // remote port to receive OSC
 const unsigned int localPort = 8888;        // local port to listen for OSC packets
 
@@ -212,7 +217,9 @@ void servo1_OSCHandler(OSCMessage &msg, int addrOffset) {
     Serial.println(inValue);
   #endif
   // TODO convert float to int?
-  RGBEncoder[0].writeCounter((int32_t) inValue); //Reset of the CVAL register
+  if (remote_connected){
+    RGBEncoder[0].writeCounter((int32_t) inValue); //Reset of the CVAL register
+  }
   moveMotorToPosition(1, inValue);
 }
 
@@ -223,7 +230,9 @@ void servo2_OSCHandler(OSCMessage &msg, int addrOffset) {
     Serial.println(inValue);
   #endif
 
-  RGBEncoder[1].writeCounter((int32_t) inValue); //Reset of the CVAL register
+  if (remote_connected){
+      RGBEncoder[1].writeCounter((int32_t) inValue); //Reset of the CVAL register
+  }
   moveMotorToPosition(2, inValue);
 }
 
@@ -235,7 +244,9 @@ void servo3_OSCHandler(OSCMessage &msg, int addrOffset) {
     Serial.println(inValue);
   #endif
 
-  RGBEncoder[2].writeCounter((int32_t) inValue); //Reset of the CVAL register
+  if (remote_connected){
+    RGBEncoder[2].writeCounter((int32_t) inValue); //Reset of the CVAL register
+  }
   moveMotorToPosition(3, inValue);
 }
 
@@ -253,9 +264,9 @@ void receiveOSCsingle(){
     // route messages
     if(!msgIn.hasError()) {
       // TODO add dynamic device number based on setting
-      msgIn.route("/camera1/servo/1", servo1_OSCHandler);
-      msgIn.route("/camera1/servo/2", servo2_OSCHandler);
-      msgIn.route("/camera1/servo/3", servo3_OSCHandler);
+      msgIn.route("/aperture", servo1_OSCHandler);
+      msgIn.route("/focus", servo2_OSCHandler);
+      msgIn.route("/zoom", servo3_OSCHandler);
       // msgIn.route("/device1/localise", localise_OSCHandler);
 
       #ifdef NEOPIXEL
@@ -297,9 +308,9 @@ void sendOSCreport(){
   #endif
   sendOSCmessage("/ver", FIRMWARE_VERSION);
   sendOSCmessage("/uptime", uptimeInSecs());
-  sendOSCmessage("/motor1/position", stepper1.currentPosition());
-  sendOSCmessage("/motor2/position", stepper2.currentPosition());
-  sendOSCmessage("/motor3/position", stepper3.currentPosition());
+  sendOSCmessage("/m1position", stepper1.currentPosition());
+  sendOSCmessage("/m2position", stepper2.currentPosition());
+  sendOSCmessage("/m3position", stepper3.currentPosition());
   #ifdef SERIAL_DEBUGING
     Serial.println(" *");
   #endif
@@ -363,66 +374,79 @@ void setup() {
     Serial.begin(SERIAL_SPEED);
   #endif
 
+  // for debaging, wait for serial
+  // while (!Serial){}
+
   #ifdef SERIAL_DEBUGING
     Serial.print("\r\nFirmware Ver: "); Serial.print(FIRMWARE_VERSION);
     Serial.println(" written by Grzegorz Zajac");
     Serial.println("Compiled: " __DATE__ ", " __TIME__ ", " __VERSION__);
+    Serial.print("Device ID "); Serial.println(device_id);
     Serial.println();
   #endif
+
+  // Check if encoders are connected, only on startup, not hotpluging yet
+  pinMode(POT_CHECK, INPUT_PULLUP); // LOW when remote is connected
+  remote_connected = !digitalRead(POT_CHECK);
+
+  // temporary before remote test
+  remote_connected = false;
 
 //-------------------------- Initializing encoders -----------------------------
   #ifdef SERIAL_DEBUGING
     Serial.println("initializing encoders");
   #endif
-  uint8_t enc_cnt;
 
+  uint8_t enc_cnt;
   pinMode(INT_PIN, INPUT);
 
-  Wire.begin();
-  // Reset of all the encoder
-  for (enc_cnt = 0; enc_cnt < ENCODER_N; enc_cnt++) {
-    RGBEncoder[enc_cnt].reset();
+  if (remote_connected){
+    Wire.begin();
+    // Reset of all the encoder
+    for (enc_cnt = 0; enc_cnt < ENCODER_N; enc_cnt++) {
+      RGBEncoder[enc_cnt].reset();
+    }
+    // Initialization of the encoders
+    for (enc_cnt = 0; enc_cnt < ENCODER_N; enc_cnt++) {
+      RGBEncoder[enc_cnt].begin(
+        i2cEncoderLibV2::INT_DATA | i2cEncoderLibV2::WRAP_DISABLE
+        | i2cEncoderLibV2::DIRE_RIGHT
+        | i2cEncoderLibV2::IPUP_ENABLE
+        | i2cEncoderLibV2::RMOD_X1
+        | i2cEncoderLibV2::RGB_ENCODER);
+      RGBEncoder[enc_cnt].writeCounter((int32_t) 0); //Reset of the CVAL register
+      RGBEncoder[enc_cnt].writeMax((int32_t) potMax); //Set the maximum threshold to 50
+      RGBEncoder[enc_cnt].writeMin((int32_t) 0); //Set the minimum threshold to 0
+      RGBEncoder[enc_cnt].writeStep((int32_t) potStep); //The step at every encoder click is 1
+      RGBEncoder[enc_cnt].writeRGBCode(0);
+      RGBEncoder[enc_cnt].writeFadeRGB(3); //Fade enabled with 3ms step
+      RGBEncoder[enc_cnt].writeAntibouncingPeriod(25); //250ms of debouncing
+      RGBEncoder[enc_cnt].writeDoublePushPeriod(0); //Set the double push period to 500ms
+
+      /* Configure the events */
+      RGBEncoder[enc_cnt].onChange = encoder_rotated;
+      RGBEncoder[enc_cnt].onButtonRelease = encoder_click;
+      RGBEncoder[enc_cnt].onMinMax = encoder_thresholds;
+      RGBEncoder[enc_cnt].onFadeProcess = encoder_fade;
+
+      /* Enable the I2C Encoder V2 interrupts according to the previus attached callback */
+      RGBEncoder[enc_cnt].autoconfigInterrupt();
+      RGBEncoder[enc_cnt].id = enc_cnt;
+    }
   }
 
-  // Initialization of the encoders
-  for (enc_cnt = 0; enc_cnt < ENCODER_N; enc_cnt++) {
-    RGBEncoder[enc_cnt].begin(
-      i2cEncoderLibV2::INT_DATA | i2cEncoderLibV2::WRAP_DISABLE
-      | i2cEncoderLibV2::DIRE_RIGHT
-      | i2cEncoderLibV2::IPUP_ENABLE
-      | i2cEncoderLibV2::RMOD_X1
-      | i2cEncoderLibV2::RGB_ENCODER);
-    RGBEncoder[enc_cnt].writeCounter((int32_t) 0); //Reset of the CVAL register
-    RGBEncoder[enc_cnt].writeMax((int32_t) potMax); //Set the maximum threshold to 50
-    RGBEncoder[enc_cnt].writeMin((int32_t) 0); //Set the minimum threshold to 0
-    RGBEncoder[enc_cnt].writeStep((int32_t) potStep); //The step at every encoder click is 1
-    RGBEncoder[enc_cnt].writeRGBCode(0);
-    RGBEncoder[enc_cnt].writeFadeRGB(3); //Fade enabled with 3ms step
-    RGBEncoder[enc_cnt].writeAntibouncingPeriod(25); //250ms of debouncing
-    RGBEncoder[enc_cnt].writeDoublePushPeriod(0); //Set the double push period to 500ms
-
-    /* Configure the events */
-    RGBEncoder[enc_cnt].onChange = encoder_rotated;
-    RGBEncoder[enc_cnt].onButtonRelease = encoder_click;
-    RGBEncoder[enc_cnt].onMinMax = encoder_thresholds;
-    RGBEncoder[enc_cnt].onFadeProcess = encoder_fade;
-
-    /* Enable the I2C Encoder V2 interrupts according to the previus attached callback */
-    RGBEncoder[enc_cnt].autoconfigInterrupt();
-    RGBEncoder[enc_cnt].id = enc_cnt;
-
-  }
 
 //-------------------------- Initializing steppers -----------------------------
   #ifdef SERIAL_DEBUGING
     Serial.println("initializing steppers");
   #endif
 
-  stepper1.setMaxSpeed(500);
-  stepper1.setAcceleration(200);
+  // exprimental settings, speed for manual adjustment quick response
+  stepper1.setMaxSpeed(5000);
+  stepper1.setAcceleration(5000);
 
-  stepper2.setMaxSpeed(500);
-  stepper2.setAcceleration(200);
+  stepper2.setMaxSpeed(5000);
+  stepper2.setAcceleration(5000);
 
   stepper3.setMaxSpeed(5000);
   stepper3.setAcceleration(5000);
@@ -443,11 +467,17 @@ void setup() {
   osc_prefix[0] = {0};
   strcat(osc_prefix, "/camera");
 
-  char buf[8];
-  sprintf(buf, "%d", DEVICE_ID);
-  strcat(osc_prefix, buf);
+  char id[8];
+  sprintf(id, "%d", device_id);
+  strcat(osc_prefix, id);
 
+  // Bonjour name
+  char bonjour_name[8] = {0};
+  strcat(bonjour_name, "camera");
+  strcat(bonjour_name, id);
 
+  // temporary for debaging
+  delay(5000);
 
   #ifdef SERIAL_DEBUGING
     Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
@@ -462,9 +492,15 @@ void setup() {
     Serial.println();
     Serial.print("OSC prefix: ");
     Serial.println(osc_prefix);
+    Serial.print("Bonjour name: ");
+    Serial.println(bonjour_name);
     Serial.println();
     Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
   #endif
+
+
+  // Initializing EthernetBonjour
+  EthernetBonjour.begin(bonjour_name);
 
   //TODO add ifconnected condition
   Udp.begin(localPort);
@@ -480,7 +516,10 @@ void setup() {
 }
 
 
+//=================================== LOOP =====================================
+
 void loop() {
+  EthernetBonjour.run();
 
   receiveOSCsingle();
 
@@ -504,22 +543,25 @@ void loop() {
       #endif
     }
 
-    Serial.println(stepper1.currentPosition());
-    Serial.println(stepper2.currentPosition());
+    Serial.print(stepper1.currentPosition());
+    Serial.print("\t");
+    Serial.print(stepper2.currentPosition());
+    Serial.print("\t");
     Serial.println(stepper3.currentPosition());
-
-    // checkMotorFaults();
   }
 
   // check pots
   uint8_t enc_cnt;
-  if (digitalRead(INT_PIN) == LOW) {
-    //Interrupt from the encoders, start to scan the encoder matrix
-    for (enc_cnt = 0; enc_cnt < ENCODER_N; enc_cnt++) {
-      if (digitalRead(INT_PIN) == HIGH) { //If the interrupt pin return high, exit from the encoder scan
-        break;
+
+  if (remote_connected){
+    if (digitalRead(INT_PIN) == LOW) {
+      //Interrupt from the encoders, start to scan the encoder matrix
+      for (enc_cnt = 0; enc_cnt < ENCODER_N; enc_cnt++) {
+        if (digitalRead(INT_PIN) == HIGH) { //If the interrupt pin return high, exit from the encoder scan
+          break;
+        }
+        RGBEncoder[enc_cnt].updateStatus();
       }
-      RGBEncoder[enc_cnt].updateStatus();
     }
   }
 
@@ -528,37 +570,36 @@ void loop() {
   stepper3.run();
 
 
-  #ifdef WEB_SERVER
-  EthernetClient client = server.available();
-  if (client) {
-    boolean currentLineIsBlank = true;
-    while (client.connected()) {
-      if (client.available()) {
-        char c = client.read();
-        Serial.write(c);
-        if (c == 'n' && currentLineIsBlank) {
-        client.println("HTTP/1.1 200 OK");
-        client.println("Content-Type: text/html");
-        client.println("Connection: close");
-        client.println("Refresh: 5");
-        client.println();
-        client.println("<!DOCTYPE HTML>");
-        client.println("<html>");
-        client.println("<title>Example</title>");
-        client.print("<p>Hello World</p>");
-        client.println("</html>");
-        break;
-      }
-      if (c == 'n') {
-        currentLineIsBlank = true;
-      } else if (c != 'r') {
-        currentLineIsBlank = false;
-      }
-    }
-  }
-    delay(1);
-    client.stop();
-  }                   			   // start to listen for clients
-  #endif
-
+  // #ifdef WEB_SERVER
+  // EthernetClient client = server.available();
+  // if (client) {
+  //   boolean currentLineIsBlank = true;
+  //   while (client.connected()) {
+  //     if (client.available()) {
+  //       char c = client.read();
+  //       Serial.write(c);
+  //       if (c == 'n' && currentLineIsBlank) {
+  //       client.println("HTTP/1.1 200 OK");
+  //       client.println("Content-Type: text/html");
+  //       client.println("Connection: close");
+  //       client.println("Refresh: 5");
+  //       client.println();
+  //       client.println("<!DOCTYPE HTML>");
+  //       client.println("<html>");
+  //       client.println("<title>Example</title>");
+  //       client.print("<p>Hello World</p>");
+  //       client.println("</html>");
+  //       break;
+  //     }
+  //     if (c == 'n') {
+  //       currentLineIsBlank = true;
+  //     } else if (c != 'r') {
+  //       currentLineIsBlank = false;
+  //     }
+  //   }
+  // }
+  //   delay(1);
+  //   client.stop();
+  // }                   			   // start to listen for clients
+  // #endif
 }
