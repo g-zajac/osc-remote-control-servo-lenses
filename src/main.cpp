@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 258
+#define FIRMWARE_VERSION 259
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -571,35 +571,124 @@ void loop() {
 
 
   #ifdef WEB_SERVER
+  // Create a client connection
   EthernetClient client = server.available();
   if (client) {
-    boolean currentLineIsBlank = true;
     while (client.connected()) {
       if (client.available()) {
         char c = client.read();
-        Serial.write(c);
-        if (c == 'n' && currentLineIsBlank) {
-        client.println("HTTP/1.1 200 OK");
-        client.println("Content-Type: text/html");
-        client.println("Connection: close");
-        client.println("Refresh: 5");
-        client.println();
-        client.println("<!DOCTYPE HTML>");
-        client.println("<html>");
-        client.println("<title>Example</title>");
-        client.print("<p>Hello World</p>");
-        client.println("</html>");
-        break;
-      }
-      if (c == 'n') {
-        currentLineIsBlank = true;
-      } else if (c != 'r') {
-        currentLineIsBlank = false;
-      }
+
+        //read char by char HTTP request
+        if (readString.length() < 100) {
+          //store characters to string
+          readString += c;
+          //Serial.print(c);
+         }
+
+         //if HTTP request has ended
+         if (c == '\n') {
+           Serial.println(readString); //print to serial monitor for debuging
+
+           client.println("HTTP/1.1 200 OK"); //send new page
+           client.println("Content-Type: text/html");
+           // client.println("<meta http-equiv=\"refresh\" content=>'0;url=http://arduino.cc/'");
+           // TODO add dynamic IP?
+           client.println("Refresh: 3;URL='//10.0.10.141/'>");
+           client.println("Connection: close");
+           // client.println("Refresh: 3");
+           client.println();
+           client.println("<!DOCTYPE HTML>");
+           client.println("<HTML>");
+           client.println("<HEAD>");
+           client.println("<TITLE>Camera Lens Controller</TITLE>");
+           client.println("</HEAD>");
+           client.println("<BODY>");
+           client.println("<H1>SSP Camera Lens controler</H1>");
+           client.println("<hr />");
+           client.println("<br />");
+           client.println("<h3>Device ID: ");
+           client.print(device_id); client.println("</h3>");
+           client.print("Firmware version: ");
+           client.println(FIRMWARE_VERSION);
+           client.println("<br />");
+           client.println("IP address: ");
+           client.println(Ethernet.localIP());
+           client.println("<br />");
+           client.print("uptime: ");
+           client.print(uptimeInSecs());
+           client.println(" secs");
+           client.println("<br />");
+
+           // client.print("knob position: "); client.print(knob_position);
+           // client.print(" -> scaled by "); client.print(knob_scaling_factor);
+           // client.print(" to "); client.println(knob_scaled);
+
+           // client.println("<ul>");
+           // for (uint8_t i = 0; i < 3; i++){
+           //   client.println("<li>");
+           //   client.print("servo "); client.println(i);
+           //   client.println(" @ ");
+           //   client.print(servo_position[i]);
+           //   client.println("</li>");
+           // }
+           // client.println("</ul");
+
+           // client.println("<br />");
+           // client.println("<a href=\"/?button0clicked\"\"><button type='button'>Set Servos @ 0</button></a>");
+           // client.println("<a href=\"/?button90clicked\"\"><button type='button'>Set Servos @ 90</button></a>");
+           // client.println("<a href=\"/?button180clicked\"\"><button type='button'>Set Servos @ 180</button></a>");
+           // client.println("<br />");
+
+
+
+           client.println("<br />");
+           client.println("</BODY>");
+           client.println("</HTML>");
+
+           client.println("<style type='text/css'>");
+             client.println("body {background-color: #222222; color: #fefefe;}");
+             client.println("h1 {color: #104bab}");
+             client.println("h3 {color: #ff5620}");
+           client.println("</style>");
+
+           delay(1);
+           //stopping client
+           client.stop();
+           // client.flush();
+           //controls the Arduino if you press the buttons
+
+           // if (readString.indexOf("?button0clicked") >0 ){
+           //   #ifdef SERIAL_DEBUGING
+           //     Serial.println("Web button pressed, setting servos @ 0");
+           //   #endif
+           //   moveMotorToPosition(0,0);
+           //   moveMotorToPosition(1,0);
+           //   moveMotorToPosition(2,0);
+           // }
+           // if (readString.indexOf("?button90clicked") >0){
+           //   #ifdef SERIAL_DEBUGING
+           //     Serial.println("Web button pressed, setting servos @ 90");
+           //   #endif
+           //   moveMotorToPosition(0,90);
+           //   moveMotorToPosition(1,90);
+           //   moveMotorToPosition(2,90);
+           // }
+           // if (readString.indexOf("?button180clicked") >0){
+           //   #ifdef SERIAL_DEBUGING
+           //     Serial.println("Web button pressed, setting servos @ 90");
+           //   #endif
+           //   moveMotorToPosition(0,180);
+           //   moveMotorToPosition(1,180);
+           //   moveMotorToPosition(2,180);
+           // }
+
+            //clearing string for next read
+            readString="";
+
+         }
+       }
     }
-  }
-    delay(1);
-    client.stop();
-  }                   			   // start to listen for clients
+  }                      			   // start to listen for clients
   #endif
-}
+
+} // end of loop
