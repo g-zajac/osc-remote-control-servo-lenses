@@ -606,17 +606,16 @@ void loop() {
            client.println("<!DOCTYPE HTML>");
            client.println("<HTML>");
            client.println("<HEAD>");
+           client.println("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">");
            client.println("<TITLE>Camera Lens Controller</TITLE>");
            client.println("</HEAD>");
            client.println("<BODY>");
-           client.println("<H1>SSP Camera Lens controler</H1>");
-           client.println("<hr />");
-           client.println("<br />");
-           client.println("<h3>Device ID: ");
-           client.print(device_id); client.println("</h3>");
-
+           client.println("<H3>SSP Camera Lens controler</H3>");
+           // client.print(device_id); client.println("</h4>");
            // NOTE toggle button?
-           client.println("<a href=\"/?buttonIDclicked\"\"><button type='button'>Identify Unit</button></a>");
+           client.print("<a href=\"/?buttonIDclicked\"\"><button class=\"button\" type='button'>Identify Device ");
+           client.print(device_id);
+           client.println("</button></a>");
            client.println("<br />");
            client.println("<br />");
 
@@ -641,28 +640,30 @@ void loop() {
              client.println("<li>");
              client.print("Zoom position: "); client.println(stepper3.currentPosition());
              client.println("</li>");
-           client.println("</ul");
+           client.println("</ul>");
 
-           client.println("<br />");
-           client.println("<a href=\"/?buttonA0clicked\"\"><button type='button'>Set Aperture @ 0</button></a>");
-           client.println("<a href=\"/?buttonF0clicked\"\"><button type='button'>Set Focus @ 0</button></a>");
-           client.println("<a href=\"/?buttonZ0clicked\"\"><button type='button'>Set Zoom @ 0</button></a>");
+           client.println("<a href=\"/?buttonA0clicked\"\"><button class=\"button\" type='button'>Apperture @ 0</button></a>");
+           client.println("<a href=\"/?buttonA1000clicked\"\"><button class=\"button\" type='button'>Apperture @ 1000</button></a>");
            client.println("<br />");
 
-           client.println("<br />");
-           client.println("<a href=\"/?buttonA1000clicked\"\"><button type='button'>Set Aperture @ 1000</button></a>");
-           client.println("<a href=\"/?buttonF1000clicked\"\"><button type='button'>Set Focus @ 1000</button></a>");
-           client.println("<a href=\"/?buttonZ1000clicked\"\"><button type='button'>Set Zoom @ 1000</button></a>");
+           client.println("<a href=\"/?buttonF0clicked\"\"><button class=\"button\" type='button'>@Focus 0</button></a>");
+           client.println("<a href=\"/?buttonF1000clicked\"\"><button class=\"button\" type='button'>Focis @ 1000</button></a>");
            client.println("<br />");
 
+           client.println("<a href=\"/?buttonZ0clicked\"\"><button class=\"button\" type='button'>Zoom @ 0</button></a>");
+           client.println("<a href=\"/?buttonZ1000clicked\"\"><button class=\"button\" type='button'>Zoom @ 1000</button></a>");
            client.println("<br />");
+
            client.println("</BODY>");
            client.println("</HTML>");
 
            client.println("<style type='text/css'>");
              client.println("body {background-color: #222222; color: #fefefe;}");
-             client.println("h1 {color: #104bab}");
-             client.println("h3 {color: #ff5620}");
+             client.println("h3 {color: #104bab}");
+             client.println("h4 {color: rgb(255, 255, 255)}");
+             client.println(".button { background-color: #104bab; color: white; border: none; border-radius: 4px; display: inline-block;");
+             client.println("text-decoration: none; margin: 2px; padding: 14px 10px; width: 40%; cursor: pointer;}");
+             // client.println(".button { background-color: #4CAF50; border: none; color: white; padding: 16px 40px;");
            client.println("</style>");
 
            delay(1);
