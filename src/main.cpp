@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 259
+#define FIRMWARE_VERSION 260
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -475,7 +475,6 @@ void setup() {
   char bonjour_name[8] = {0};
   strcat(bonjour_name, "camera");
   strcat(bonjour_name, id);
-
   // temporary for debaging
   delay(5000);
 
@@ -591,11 +590,13 @@ void loop() {
 
            client.println("HTTP/1.1 200 OK"); //send new page
            client.println("Content-Type: text/html");
-           // client.println("<meta http-equiv=\"refresh\" content=>'0;url=http://arduino.cc/'");
-           // TODO add dynamic IP?
-           client.println("Refresh: 3;URL='//10.0.10.141/'>");
            client.println("Connection: close");
            // client.println("Refresh: 3");
+           // regular refresh refreshes link with button pressed!!!
+           // TODO add dynamic IP
+           // strcat(bonjour_name, ".local");
+
+           client.println("Refresh: 3;URL='//10.0.10.241/'>");
            client.println();
            client.println("<!DOCTYPE HTML>");
            client.println("<HTML>");
@@ -608,6 +609,11 @@ void loop() {
            client.println("<br />");
            client.println("<h3>Device ID: ");
            client.print(device_id); client.println("</h3>");
+
+           client.println("<a href=\"/?buttonIDclicked\"\"><button type='button'>Identify Unit</button></a>");
+           client.println("<br />");
+           client.println("<br />");
+
            client.print("Firmware version: ");
            client.println(FIRMWARE_VERSION);
            client.println("<br />");
@@ -619,27 +625,23 @@ void loop() {
            client.println(" secs");
            client.println("<br />");
 
-           // client.print("knob position: "); client.print(knob_position);
-           // client.print(" -> scaled by "); client.print(knob_scaling_factor);
-           // client.print(" to "); client.println(knob_scaled);
+           client.println("<ul>");
+             client.println("<li>");
+             client.print("Aperture position: "); client.println(stepper1.currentPosition());
+             client.println("</li>");
+             client.println("<li>");
+             client.print("Focus position: "); client.println(stepper2.currentPosition());
+             client.println("</li>");
+             client.println("<li>");
+             client.print("Zoom position: "); client.println(stepper3.currentPosition());
+             client.println("</li>");
+           client.println("</ul");
 
-           // client.println("<ul>");
-           // for (uint8_t i = 0; i < 3; i++){
-           //   client.println("<li>");
-           //   client.print("servo "); client.println(i);
-           //   client.println(" @ ");
-           //   client.print(servo_position[i]);
-           //   client.println("</li>");
-           // }
-           // client.println("</ul");
-
-           // client.println("<br />");
-           // client.println("<a href=\"/?button0clicked\"\"><button type='button'>Set Servos @ 0</button></a>");
-           // client.println("<a href=\"/?button90clicked\"\"><button type='button'>Set Servos @ 90</button></a>");
-           // client.println("<a href=\"/?button180clicked\"\"><button type='button'>Set Servos @ 180</button></a>");
-           // client.println("<br />");
-
-
+           client.println("<br />");
+           client.println("<a href=\"/?buttonA0clicked\"\"><button type='button'>Set Aperture @ 0</button></a>");
+           client.println("<a href=\"/?buttonF0clicked\"\"><button type='button'>Set Focus @ 0</button></a>");
+           client.println("<a href=\"/?buttonZ0clicked\"\"><button type='button'>Set Zoom @ 0</button></a>");
+           client.println("<br />");
 
            client.println("<br />");
            client.println("</BODY>");
@@ -657,30 +659,33 @@ void loop() {
            // client.flush();
            //controls the Arduino if you press the buttons
 
-           // if (readString.indexOf("?button0clicked") >0 ){
-           //   #ifdef SERIAL_DEBUGING
-           //     Serial.println("Web button pressed, setting servos @ 0");
-           //   #endif
-           //   moveMotorToPosition(0,0);
-           //   moveMotorToPosition(1,0);
-           //   moveMotorToPosition(2,0);
-           // }
-           // if (readString.indexOf("?button90clicked") >0){
-           //   #ifdef SERIAL_DEBUGING
-           //     Serial.println("Web button pressed, setting servos @ 90");
-           //   #endif
-           //   moveMotorToPosition(0,90);
-           //   moveMotorToPosition(1,90);
-           //   moveMotorToPosition(2,90);
-           // }
-           // if (readString.indexOf("?button180clicked") >0){
-           //   #ifdef SERIAL_DEBUGING
-           //     Serial.println("Web button pressed, setting servos @ 90");
-           //   #endif
-           //   moveMotorToPosition(0,180);
-           //   moveMotorToPosition(1,180);
-           //   moveMotorToPosition(2,180);
-           // }
+           if (readString.indexOf("?buttonA0clicked") >0 ){
+             #ifdef SERIAL_DEBUGING
+               Serial.println("Web button pressed, setting aperture to 0");
+             #endif
+             moveMotorToPosition(1, 0);
+           }
+           if (readString.indexOf("?buttonF0clicked") >0){
+             #ifdef SERIAL_DEBUGING
+               Serial.println("Web button pressed, setting focus to 0");
+             #endif
+             moveMotorToPosition(2, 0);
+           }
+           if (readString.indexOf("?buttonZ0clicked") >0){
+             #ifdef SERIAL_DEBUGING
+               Serial.println("Web button pressed, setting zoom to 0");
+             #endif
+             moveMotorToPosition(3, 0);
+           }
+           if (readString.indexOf("?buttonIDclicked") >0){
+             #ifdef SERIAL_DEBUGING
+               Serial.println("Web button pressed, turning neopixel white");
+             #endif
+             #ifdef NEOPIXEL
+               pixels.setPixelColor(0, pixels.Color(255, 255, 255));
+               pixels.show();
+             #endif
+           }
 
             //clearing string for next read
             readString="";
