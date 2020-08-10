@@ -86,6 +86,7 @@ i2cEncoderLibV2 RGBEncoder[ENCODER_N] = { i2cEncoderLibV2(0x01),
 uint8_t encoder_status, i;
 
 bool remote_connected = false;
+bool lock_remote = false;
 
 //---------------------------- MAC & IP list ----------------------------------
 // id stored in EEPROM, id points on array index and
@@ -220,6 +221,7 @@ void servo1_OSCHandler(OSCMessage &msg, int addrOffset) {
     RGBEncoder[0].writeCounter((int32_t) inValue); //Reset of the CVAL register
   }
   moveMotorToPosition(1, inValue);
+  lock_remote = false;  
 }
 
 void servo2_OSCHandler(OSCMessage &msg, int addrOffset) {
@@ -233,6 +235,7 @@ void servo2_OSCHandler(OSCMessage &msg, int addrOffset) {
       RGBEncoder[1].writeCounter((int32_t) inValue); //Reset of the CVAL register
   }
   moveMotorToPosition(2, inValue);
+  lock_remote = false;
 }
 
 void servo3_OSCHandler(OSCMessage &msg, int addrOffset) {
@@ -247,6 +250,7 @@ void servo3_OSCHandler(OSCMessage &msg, int addrOffset) {
     RGBEncoder[2].writeCounter((int32_t) inValue); //Reset of the CVAL register
   }
   moveMotorToPosition(3, inValue);
+  lock_remote = false;
 }
 
 void receiveOSCsingle(){
@@ -263,6 +267,7 @@ void receiveOSCsingle(){
     // route messages
     if(!msgIn.hasError()) {
       // TODO add dynamic device number based on setting
+      lock_remote = true;
       msgIn.route("/aperture", servo1_OSCHandler);
       msgIn.route("/focus", servo2_OSCHandler);
       msgIn.route("/zoom", servo3_OSCHandler);
@@ -288,10 +293,10 @@ void sendOSCmessage(char* name, int value){
   strcat(message_osc_header, osc_prefix);
   strcat(message_osc_header, name);
 
-  #ifdef SERIAL_DEBUGING
-    Serial.print("OSC header: ");
-    Serial.println(message_osc_header);
-  #endif
+  // #ifdef SERIAL_DEBUGING
+  //   Serial.print("OSC header: ");
+  //   Serial.println(message_osc_header);
+  // #endif
 
   OSCMessage message(message_osc_header);
   message.add(value);
@@ -553,6 +558,9 @@ void loop() {
     Serial.print(stepper2.currentPosition());
     Serial.print("\t");
     Serial.println(stepper3.currentPosition());
+
+    Serial.print("Remote lock: ");
+    Serial.println(lock_remote);
   }
 
   // check pots
