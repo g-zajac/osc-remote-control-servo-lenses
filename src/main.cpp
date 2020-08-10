@@ -120,11 +120,10 @@ long uptime = 0;
 
 char osc_prefix[16];                  // device OSC prefix message, i.e /camera1
 
-
 #ifdef WEB_SERVER
   EthernetServer server(80);
   String readString;
-  // int potsPositionsArray[] = {0,0,0};
+  char web_address[16] = {0};                  // host name + .local - for web refreshin link
 #endif
 
 #ifdef NEOPIXEL
@@ -472,9 +471,14 @@ void setup() {
   strcat(osc_prefix, id);
 
   // Bonjour name
-  char bonjour_name[8] = {0};
+  char bonjour_name[8] = {0};                 // host name i.e camera1, used for address instead of IP -> used with .local i.e camera1.local
   strcat(bonjour_name, "camera");
   strcat(bonjour_name, id);
+
+  // decelared globally for accesing in loop in web site
+  strcat(web_address, bonjour_name);
+  strcat(web_address, ".local");
+
   // temporary for debaging
   delay(5000);
 
@@ -493,6 +497,8 @@ void setup() {
     Serial.println(osc_prefix);
     Serial.print("Bonjour name: ");
     Serial.println(bonjour_name);
+    Serial.print("Web refresh link: ");
+    Serial.println(web_address);
     Serial.println();
     Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
   #endif
@@ -570,6 +576,8 @@ void loop() {
 
 
   #ifdef WEB_SERVER
+  // TODO add dynamic IP
+
   // Create a client connection
   EthernetClient client = server.available();
   if (client) {
@@ -591,12 +599,9 @@ void loop() {
            client.println("HTTP/1.1 200 OK"); //send new page
            client.println("Content-Type: text/html");
            client.println("Connection: close");
-           // client.println("Refresh: 3");
-           // regular refresh refreshes link with button pressed!!!
-           // TODO add dynamic IP
-           // strcat(bonjour_name, ".local");
-
-           client.println("Refresh: 3;URL='//10.0.10.241/'>");
+           client.print("Refresh: 3;URL='//");
+           client.print(web_address);
+           client.println("/'");
            client.println();
            client.println("<!DOCTYPE HTML>");
            client.println("<HTML>");
@@ -644,6 +649,12 @@ void loop() {
            client.println("<br />");
 
            client.println("<br />");
+           client.println("<a href=\"/?buttonA1000clicked\"\"><button type='button'>Set Aperture @ 1000</button></a>");
+           client.println("<a href=\"/?buttonF1000clicked\"\"><button type='button'>Set Focus @ 1000</button></a>");
+           client.println("<a href=\"/?buttonZ1000clicked\"\"><button type='button'>Set Zoom @ 1000</button></a>");
+           client.println("<br />");
+
+           client.println("<br />");
            client.println("</BODY>");
            client.println("</HTML>");
 
@@ -659,25 +670,43 @@ void loop() {
            // client.flush();
            //controls the Arduino if you press the buttons
 
-           if (readString.indexOf("?buttonA0clicked") >0 ){
+           if (readString.indexOf("?buttonA0clicked") > 0 ){
              #ifdef SERIAL_DEBUGING
                Serial.println("Web button pressed, setting aperture to 0");
              #endif
              moveMotorToPosition(1, 0);
            }
-           if (readString.indexOf("?buttonF0clicked") >0){
+           if (readString.indexOf("?buttonF0clicked") > 0){
              #ifdef SERIAL_DEBUGING
                Serial.println("Web button pressed, setting focus to 0");
              #endif
              moveMotorToPosition(2, 0);
            }
-           if (readString.indexOf("?buttonZ0clicked") >0){
+           if (readString.indexOf("?buttonZ0clicked") > 0){
              #ifdef SERIAL_DEBUGING
                Serial.println("Web button pressed, setting zoom to 0");
              #endif
              moveMotorToPosition(3, 0);
            }
-           if (readString.indexOf("?buttonIDclicked") >0){
+           if (readString.indexOf("?buttonA1000clicked") > 0 ){
+             #ifdef SERIAL_DEBUGING
+               Serial.println("Web button pressed, setting aperture to 0");
+             #endif
+             moveMotorToPosition(1, 1000);
+           }
+           if (readString.indexOf("?buttonF1000clicked") > 0){
+             #ifdef SERIAL_DEBUGING
+               Serial.println("Web button pressed, setting focus to 0");
+             #endif
+             moveMotorToPosition(2, 1000);
+           }
+           if (readString.indexOf("?buttonZ1000clicked") > 0){
+             #ifdef SERIAL_DEBUGING
+               Serial.println("Web button pressed, setting zoom to 0");
+             #endif
+             moveMotorToPosition(3, 1000);
+           }
+           if (readString.indexOf("?buttonIDclicked") > 0){
              #ifdef SERIAL_DEBUGING
                Serial.println("Web button pressed, turning neopixel white");
              #endif
