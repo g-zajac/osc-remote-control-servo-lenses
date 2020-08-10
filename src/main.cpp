@@ -615,6 +615,7 @@ void loop() {
            client.println("<h3>Device ID: ");
            client.print(device_id); client.println("</h3>");
 
+           // NOTE toggle button?
            client.println("<a href=\"/?buttonIDclicked\"\"><button type='button'>Identify Unit</button></a>");
            client.println("<br />");
            client.println("<br />");
