@@ -88,6 +88,8 @@ uint8_t encoder_status, i;
 bool remote_connected = false;
 bool lock_remote = false;
 
+bool toggle[] = { 0, 0, 0 };
+
 //---------------------------- MAC & IP list ----------------------------------
 // id stored in EEPROM, id points on array index and
 // assign MAC and IP for device, they mus be unique within the netowrk
@@ -169,27 +171,41 @@ void encoder_rotated(i2cEncoderLibV2* obj) {
     #ifdef SERIAL_DEBUGING
       Serial.print("Decrement ");
     #endif
+
     int motorID = (obj->id) + 1;
     int position =obj->readCounterInt();
-    #ifdef SERIAL_DEBUGING
-      Serial.print(motorID);
-      Serial.print(": ");
-      Serial.println(position);
-    #endif
+    // #ifdef SERIAL_DEBUGING
+    //   Serial.print(motorID);
+    //   Serial.print(": ");
+    //   Serial.println(position);
+    // #endif
 
   obj->writeRGBCode(0x00FF00);
-
   moveMotorToPosition(motorID, position);
-
-  // #ifdef WEB_SERVER
-  //   potsPositionsArray[motorID] = position;
-  // #endif
 }
 
 void encoder_click(i2cEncoderLibV2* obj) {
-  Serial.print("Push: ");
-  Serial.println(obj->id);
+
   obj->writeRGBCode(0x0000FF);
+
+  int pushed = obj->id;
+
+  if (toggle[pushed]) {
+    RGBEncoder[pushed].writeStep((int32_t) 1);
+  } else {
+    RGBEncoder[pushed].writeStep((int32_t) 10);
+  }
+
+  #ifdef SERIAL_DEBUGING
+    Serial.print("Toggle =  ");
+    Serial.print(toggle[0]);
+    Serial.print('\t');
+    Serial.print(toggle[1]);
+    Serial.print('\t');
+    Serial.println(toggle[2]);
+  #endif
+
+  toggle[pushed] = !toggle[pushed];
 }
 
 void encoder_thresholds(i2cEncoderLibV2* obj) {
