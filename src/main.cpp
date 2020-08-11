@@ -650,7 +650,7 @@ void loop() {
            client.print(uptimeInSecs());
            client.println(" secs");
            client.println("<br />");
-           client.println("Remote presese: ");
+           client.println("Remote connected: ");
            client.println(remote_connected);
            client.println("<br />");
 
@@ -672,7 +672,7 @@ void loop() {
            client.println("<br />");
 
            client.println("<a href=\"/?buttonF0clicked\"\"><button class=\"button\" type='button'>@Focus 0</button></a>");
-           client.println("<a href=\"/?buttonF1000clicked\"\"><button class=\"button\" type='button'>Focis @ 1000</button></a>");
+           client.println("<a href=\"/?buttonF1000clicked\"\"><button class=\"button\" type='button'>Focus @ 1000</button></a>");
            client.println("<br />");
 
            client.println("<a href=\"/?buttonZ0clicked\"\"><button class=\"button\" type='button'>Zoom @ 0</button></a>");
