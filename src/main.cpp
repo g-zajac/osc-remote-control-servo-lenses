@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 260
+#define FIRMWARE_VERSION 262
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -221,7 +221,7 @@ void servo1_OSCHandler(OSCMessage &msg, int addrOffset) {
     RGBEncoder[0].writeCounter((int32_t) inValue); //Reset of the CVAL register
   }
   moveMotorToPosition(1, inValue);
-  lock_remote = false;  
+  lock_remote = false;
 }
 
 void servo2_OSCHandler(OSCMessage &msg, int addrOffset) {
@@ -392,9 +392,6 @@ void setup() {
   // Check if encoders are connected, only on startup, not hotpluging yet
   pinMode(POT_CHECK, INPUT_PULLUP); // LOW when remote is connected
   remote_connected = !digitalRead(POT_CHECK);
-
-  // temporary before remote test
-  remote_connected = false;
 
 //-------------------------- Initializing encoders -----------------------------
   #ifdef SERIAL_DEBUGING
@@ -637,6 +634,10 @@ void loop() {
            client.print(uptimeInSecs());
            client.println(" secs");
            client.println("<br />");
+           client.println("Remote presese: ");
+           client.println(remote_connected);
+           client.println("<br />");
+
 
            client.println("<ul>");
              client.println("<li>");
