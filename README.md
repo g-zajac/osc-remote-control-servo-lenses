@@ -10,8 +10,8 @@ Various existing applications can be used for remote control i.e Isadora, TouchO
 ## Hardware
 * teensy 4.0
 * ethernet wiz5500 module
-* DRV8823 stepper driver
-* 3 (focus, zoom, aperture) mini stepper motors GM1527-10
+* 3x DRV8823 stepper driver
+* 3x (focus, zoom, aperture) mini stepper motors GM1527-10
 * [rotary encoder with RGB led from Saimon](https://github.com/Fattoresaimon/I2CEncoderV2.1)
 
 #### Construction
