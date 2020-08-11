@@ -1,3 +1,5 @@
+<a href="http://gz.technology" target="_blank">![logo](doc/logo.png)</a>
+
 # Remote lens control with mini servo and OSC
 
 ## About The Project
@@ -6,12 +8,17 @@ This project solves a problem of remote controling non-motorized lens. Three cam
 Various existing applications can be used for remote control i.e Isadora, TouchOSC, Qlab, MaxMSP etc.
 
 ## Hardware
-* teensy 4.1, enough gpios to control 3 servos including microstepping configuration
+* teensy 4.0
 * ethernet wiz5500 module
-* DRV8823 stepper driver
-* 3 x mini stepper motors (focus, zoom, aperture)
+* 3x DRV8823 stepper driver
+* 3x (focus, zoom, aperture) mini stepper motors GM1527-10
 * [rotary encoder with RGB led from Saimon](https://github.com/Fattoresaimon/I2CEncoderV2.1)
 
+#### Construction
+
+![prototype](doc/prototype.jpg)
+
+All comopnents are soldered on custom designed PCB. There are few SMD capacitors, MAX811 reset IC, teensy 4.0 and DRV 8823 boards.
 
 ## Built With
 * [Drakon](http://drakon-editor.sourceforge.net) - visual language for flowcahrts
@@ -23,5 +30,5 @@ Various existing applications can be used for remote control i.e Isadora, TouchO
 This project is licensed under [MIT license](http://opensource.org/licenses/mit-license.php)
 
 ## Project status
-- Prototype under development.
+- Prototype V1.0 finished and working.
 - Firmware under development.

@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 260
+#define FIRMWARE_VERSION 262
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -88,6 +88,8 @@ uint8_t encoder_status, i;
 bool remote_connected = false;
 bool lock_remote = false;
 
+bool toggle[] = { 0, 0, 0 };
+
 //---------------------------- MAC & IP list ----------------------------------
 // id stored in EEPROM, id points on array index and
 // assign MAC and IP for device, they mus be unique within the netowrk
@@ -169,27 +171,41 @@ void encoder_rotated(i2cEncoderLibV2* obj) {
     #ifdef SERIAL_DEBUGING
       Serial.print("Decrement ");
     #endif
+
     int motorID = (obj->id) + 1;
     int position =obj->readCounterInt();
-    #ifdef SERIAL_DEBUGING
-      Serial.print(motorID);
-      Serial.print(": ");
-      Serial.println(position);
-    #endif
+    // #ifdef SERIAL_DEBUGING
+    //   Serial.print(motorID);
+    //   Serial.print(": ");
+    //   Serial.println(position);
+    // #endif
 
   obj->writeRGBCode(0x00FF00);
-
   moveMotorToPosition(motorID, position);
-
-  // #ifdef WEB_SERVER
-  //   potsPositionsArray[motorID] = position;
-  // #endif
 }
 
 void encoder_click(i2cEncoderLibV2* obj) {
-  Serial.print("Push: ");
-  Serial.println(obj->id);
+
   obj->writeRGBCode(0x0000FF);
+
+  int pushed = obj->id;
+
+  if (toggle[pushed]) {
+    RGBEncoder[pushed].writeStep((int32_t) 1);
+  } else {
+    RGBEncoder[pushed].writeStep((int32_t) 10);
+  }
+
+  #ifdef SERIAL_DEBUGING
+    Serial.print("Toggle =  ");
+    Serial.print(toggle[0]);
+    Serial.print('\t');
+    Serial.print(toggle[1]);
+    Serial.print('\t');
+    Serial.println(toggle[2]);
+  #endif
+
+  toggle[pushed] = !toggle[pushed];
 }
 
 void encoder_thresholds(i2cEncoderLibV2* obj) {
@@ -221,7 +237,7 @@ void servo1_OSCHandler(OSCMessage &msg, int addrOffset) {
     RGBEncoder[0].writeCounter((int32_t) inValue); //Reset of the CVAL register
   }
   moveMotorToPosition(1, inValue);
-  lock_remote = false;  
+  lock_remote = false;
 }
 
 void servo2_OSCHandler(OSCMessage &msg, int addrOffset) {
@@ -392,9 +408,6 @@ void setup() {
   // Check if encoders are connected, only on startup, not hotpluging yet
   pinMode(POT_CHECK, INPUT_PULLUP); // LOW when remote is connected
   remote_connected = !digitalRead(POT_CHECK);
-
-  // temporary before remote test
-  remote_connected = false;
 
 //-------------------------- Initializing encoders -----------------------------
   #ifdef SERIAL_DEBUGING
@@ -637,6 +650,10 @@ void loop() {
            client.print(uptimeInSecs());
            client.println(" secs");
            client.println("<br />");
+           client.println("Remote connected: ");
+           client.println(remote_connected);
+           client.println("<br />");
+
 
            client.println("<ul>");
              client.println("<li>");
@@ -655,7 +672,7 @@ void loop() {
            client.println("<br />");
 
            client.println("<a href=\"/?buttonF0clicked\"\"><button class=\"button\" type='button'>@Focus 0</button></a>");
-           client.println("<a href=\"/?buttonF1000clicked\"\"><button class=\"button\" type='button'>Focis @ 1000</button></a>");
+           client.println("<a href=\"/?buttonF1000clicked\"\"><button class=\"button\" type='button'>Focus @ 1000</button></a>");
            client.println("<br />");
 
            client.println("<a href=\"/?buttonZ0clicked\"\"><button class=\"button\" type='button'>Zoom @ 0</button></a>");
