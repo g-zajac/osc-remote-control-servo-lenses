@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 267
+#define FIRMWARE_VERSION 268
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -8,7 +8,7 @@
 // ******************************
 
 // Enable/Disable modules
-// #define SERIAL_DEBUGING
+#define SERIAL_DEBUGING
 #define NEOPIXEL
 // #define WEB_SERVER
 
@@ -39,7 +39,7 @@
 // encoders settings
 #define potFineStep 1
 #define potCoarseStep 10
-#define potMax 1000
+#define potMax 10000
 
 
 //------------------------------------------------------------------------------
@@ -225,8 +225,8 @@ void encoder_thresholds(i2cEncoderLibV2* obj) {
         Serial.print("Min: ");
         Serial.println(obj->id);
       #endif
-        obj->writeRGBCode(0xFF0000);
     }
+    obj->writeRGBCode(0xFF0000);
 }
 
 void encoder_fade(i2cEncoderLibV2* obj) {
@@ -371,7 +371,7 @@ bool checkEthernetConnection(){
   // // Check for Ethernet hardware present
   if (Ethernet.hardwareStatus() == EthernetNoHardware) {
     #ifdef SERIAL_DEBUGING
-      Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
+      // Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
     #endif
 
     #ifdef NEOPIXEL
@@ -383,7 +383,7 @@ bool checkEthernetConnection(){
   }
   else if (Ethernet.linkStatus() == LinkOFF) {
     #ifdef SERIAL_DEBUGING
-      Serial.println("Ethernet cable is not connected.");
+      // Serial.println("Ethernet cable is not connected.");
     #endif
 
     #ifdef NEOPIXEL
