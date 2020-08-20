@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 268
+#define FIRMWARE_VERSION 267
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -10,7 +10,7 @@
 // Enable/Disable modules
 #define SERIAL_DEBUGING
 #define NEOPIXEL
-// #define WEB_SERVER
+#define WEB_SERVER
 
 //-------------------------------- pins definition -----------------------------
 
@@ -96,7 +96,7 @@ bool toggle[] = { 0, 0, 0 };
 // assign MAC and IP for device, they mus be unique within the netowrk
 
 byte MAC_ARRAY[] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07};
-int IP_ARRAY[] = {240, 241, 242, 243, 244, 245, 246, 247};
+int IP_ARRAY[] = {200, 201, 202, 203, 204, 205, 206, 207};
 //-----------------------------------------------------------------------------
 
 // get the device ID from EEPROM
@@ -114,9 +114,9 @@ bool isLANconnected = false;
 EthernetUDP Udp;
 
 // OSC destination address, 255 broadcast
-IPAddress targetIP(10, 0, 10, 101);   // Isadora machine IP address
-const unsigned int destPort = 9999;          // remote port to receive OSC
-const unsigned int localPort = 8888;        // local port to listen for OSC packets
+IPAddress targetIP(10, 0, 10, 255);   // Isadora machine IP address
+const unsigned int destPort = 1234;          // remote port to receive OSC
+const unsigned int localPort = 4321;        // local port to listen for OSC packets
 
 unsigned long previousMillis = 0;
 const long interval = 1000;
@@ -357,11 +357,11 @@ void sendOSCreport(){
   #ifdef SERIAL_DEBUGING
     Serial.print("Sending OSC raport ");
   #endif
+  sendOSCmessage("/aperture", stepper1.currentPosition());
+  sendOSCmessage("/focus", stepper2.currentPosition());
+  sendOSCmessage("/zoom", stepper3.currentPosition());
   sendOSCmessage("/ver", FIRMWARE_VERSION);
   sendOSCmessage("/uptime", uptimeInSecs());
-  sendOSCmessage("/m1position", stepper1.currentPosition());
-  sendOSCmessage("/m2position", stepper2.currentPosition());
-  sendOSCmessage("/m3position", stepper3.currentPosition());
   #ifdef SERIAL_DEBUGING
     Serial.println(" *");
   #endif
@@ -395,7 +395,7 @@ bool checkEthernetConnection(){
   }
   else if (Ethernet.linkStatus() == LinkON) {
     #ifdef SERIAL_DEBUGING
-      Serial.println("Ethernet cable is connected.");
+      // Serial.println("Ethernet cable is connected.");
     #endif
 
     #ifdef NEOPIXEL
