@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 273
+#define FIRMWARE_VERSION 274
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -148,32 +148,7 @@ void moveMotorToPosition(uint8_t motor, int position){
         Serial.print("moving motor "); Serial.print(motor); Serial.print(" to position "); Serial.println(position);
       #endif
 
-      // stepper[motor]->moveTo(position);
-
-        switch(motor) {
-          case 0:
-            #ifdef SERIAL_DEBUGING
-              Serial.print("switch moveing motor 1 to position:");
-              Serial.println(position);
-            #endif
-            stepper1.moveTo(position);
-            break;
-          case 1:
-            #ifdef SERIAL_DEBUGING
-              Serial.print("switch moving motor 2 to position:");
-              Serial.println(position);
-              Serial.print("moving motor "); Serial.print(motor); Serial.print(" to position "); Serial.println(position);
-            #endif
-            stepper2.moveTo(position);
-            break;
-          case 2:
-            #ifdef SERIAL_DEBUGING
-              Serial.print("switch moving motor 3 to position:");
-              Serial.println(position);
-            #endif
-            stepper3.moveTo(position);
-            break;
-        }
+      stepper[motor]->moveTo(position);
 }
 
 // -------------------------- Encoder callbacks --------------------------------
