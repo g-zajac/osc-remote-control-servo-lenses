@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 267
+#define FIRMWARE_VERSION 269
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -162,6 +162,7 @@ void moveMotorToPosition(uint8_t motor, int position){
   }
 }
 
+// -------------------------- Encoder callbacks --------------------------------
 //Callback when the encoder is rotated
 void encoder_rotated(i2cEncoderLibV2* obj) {
   if (obj->readStatus(i2cEncoderLibV2::RINC))
@@ -237,11 +238,13 @@ int uptimeInSecs(){
   return (int)(millis()/1000);
 }
 
-void servo1_OSCHandler(OSCMessage &msg, int addrOffset) {
+
+//------------------------------ Stepper handlers ------------------------------
+void apertureMotorOSChandler(OSCMessage &msg, int addrOffset) {
   // TODO replace with one function for all OSC with motor number?
   int inValue = msg.getFloat(0);
   #ifdef SERIAL_DEBUGING
-    Serial.print("osc servo 1 update: ");
+    Serial.print("aperture osc received: ");
     Serial.println(inValue);
   #endif
   // TODO convert float to int?
@@ -252,10 +255,10 @@ void servo1_OSCHandler(OSCMessage &msg, int addrOffset) {
   lock_remote = false;
 }
 
-void servo2_OSCHandler(OSCMessage &msg, int addrOffset) {
+void focusMotorOSChandler(OSCMessage &msg, int addrOffset) {
   int inValue = msg.getFloat(0);
   #ifdef SERIAL_DEBUGING
-    Serial.print("osc servo 2 update: ");
+    Serial.print("focus osc received: ");
     Serial.println(inValue);
   #endif
 
@@ -266,11 +269,11 @@ void servo2_OSCHandler(OSCMessage &msg, int addrOffset) {
   lock_remote = false;
 }
 
-void servo3_OSCHandler(OSCMessage &msg, int addrOffset) {
+void zoomMotorOSChandler(OSCMessage &msg, int addrOffset) {
   // TODO check isadora sending int?
   int inValue = msg.getFloat(0);
   #ifdef SERIAL_DEBUGING
-    Serial.print("osc servo 3 update: ");
+    Serial.print("zoom osc received: ");
     Serial.println(inValue);
   #endif
 
@@ -281,7 +284,8 @@ void servo3_OSCHandler(OSCMessage &msg, int addrOffset) {
   lock_remote = false;
 }
 
-void turnLedHandler(OSCMessage &msg, int addrOffset) {
+//------------------------------- LED handlers ---------------------------------
+void apertureLedOSChandler(OSCMessage &msg, int addrOffset) {
   // TODO check isadora sending int?
   int r = msg.getInt(0);
   int g = msg.getInt(1);
@@ -292,12 +296,59 @@ void turnLedHandler(OSCMessage &msg, int addrOffset) {
 
   #ifdef SERIAL_DEBUGING
     Serial.println("R:" + String(r) + " G:" + String(g) + " B:" + String(b));
-    Serial.println("Hex: 0x" + String(rgb, HEX));
+    Serial.print("simply rgb: "); Serial.println(rgb);
+    Serial.println("Hex: " + String(rgb, HEX));
   #endif
 
   RGBEncoder[0].writeRGBCode(rgb);
   RGBEncoder[1].writeRGBCode(0xFF0000);
 }
+
+void focusLedOSChandler(OSCMessage &msg, int addrOffset) {
+  // TODO check isadora sending int?
+  int inValue = msg.getFloat(0);
+  #ifdef SERIAL_DEBUGING
+    Serial.print("focusLedOSChandler: ");
+    Serial.println(inValue);
+  #endif
+
+  lock_remote = false;
+}
+
+void zoomLedOSChandler(OSCMessage &msg, int addrOffset) {
+  // TODO check isadora sending int?
+  int inValue = msg.getFloat(0);
+  #ifdef SERIAL_DEBUGING
+    Serial.print("zoomLedOSChandler: ");
+    Serial.println(inValue);
+  #endif
+
+  lock_remote = false;
+}
+
+// ------------------------------- other handlers ------------------------------
+void resetOSChandler(OSCMessage &msg, int addrOffset) {
+  // TODO check isadora sending int?
+  int inValue = msg.getFloat(0);
+  #ifdef SERIAL_DEBUGING
+    Serial.print("resetOSChandler: ");
+    Serial.println(inValue);
+  #endif
+
+  lock_remote = false;
+}
+
+void brightnessHandler(OSCMessage &msg, int addrOffset) {
+  // TODO check isadora sending int?
+  int inValue = msg.getFloat(0);
+  #ifdef SERIAL_DEBUGING
+    Serial.print("brightnessHandler: ");
+    Serial.println(inValue);
+  #endif
+
+  lock_remote = false;
+}
+//------------------------------------------------------------------------------
 
 void receiveOSCsingle(){
   // read incoming udp packets
@@ -314,10 +365,18 @@ void receiveOSCsingle(){
     if(!msgIn.hasError()) {
       // TODO add dynamic device number based on setting
       lock_remote = true;
-      msgIn.route("/aperture", servo1_OSCHandler);
-      msgIn.route("/focus", servo2_OSCHandler);
-      msgIn.route("/zoom", servo3_OSCHandler);
-      msgIn.route("/turnLed", turnLedHandler);
+      msgIn.route("/aperture", apertureMotorOSChandler);
+      msgIn.route("/focus", focusMotorOSChandler);
+      msgIn.route("/zoom", zoomMotorOSChandler);
+
+      msgIn.route("/ledAperture", apertureLedOSChandler);
+      msgIn.route("/ledFocus", focusLedOSChandler);
+      msgIn.route("/ledZoom", zoomLedOSChandler);
+
+      msgIn.route("/brightness", brightnessHandler);
+      // TODO set motors to -100 and set poistions at 0
+      // NOTE when receive 1 only
+      msgIn.route("/reset", resetOSChandler);
       // msgIn.route("/device1/localise", localise_OSCHandler);
 
       #ifdef NEOPIXEL
@@ -357,11 +416,12 @@ void sendOSCreport(){
   #ifdef SERIAL_DEBUGING
     Serial.print("Sending OSC raport ");
   #endif
+  // TODO fix sending -256 values when remote disconnected
   sendOSCmessage("/aperture", stepper1.currentPosition());
   sendOSCmessage("/focus", stepper2.currentPosition());
   sendOSCmessage("/zoom", stepper3.currentPosition());
-  sendOSCmessage("/ver", FIRMWARE_VERSION);
   sendOSCmessage("/uptime", uptimeInSecs());
+  sendOSCmessage("/ver", FIRMWARE_VERSION);
   #ifdef SERIAL_DEBUGING
     Serial.println(" *");
   #endif
