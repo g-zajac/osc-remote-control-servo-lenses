@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 269
+#define FIRMWARE_VERSION 27
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -71,6 +71,7 @@ AccelStepper stepper1(AccelStepper::DRIVER, MOTOR1STEP_PIN, MOTOR1DIR_PIN);
 AccelStepper stepper2(AccelStepper::DRIVER, MOTOR2STEP_PIN, MOTOR2DIR_PIN);
 AccelStepper stepper3(AccelStepper::DRIVER, MOTOR3STEP_PIN, MOTOR3DIR_PIN);
 
+bool homeing = false;
 //------------------------------ I2C encoders ----------------------------------
 // Connections:
 // - -> GND
@@ -335,6 +336,32 @@ void resetOSChandler(OSCMessage &msg, int addrOffset) {
     Serial.println(inValue);
   #endif
 
+  #ifdef NEOPIXEL
+    pixels.setPixelColor(0, pixels.Color(255, 0, 0));
+    pixels.show();
+  #endif
+
+  homeing = true;
+  //TODO replace with for, change stepper1... to array?
+  moveMotorToPosition(1, -100);
+  moveMotorToPosition(2, -100);
+  moveMotorToPosition(3, -100);
+
+  if (remote_connected){
+    RGBEncoder[1].writeCounter((int32_t) 0); //Reset of the CVAL register
+    RGBEncoder[2].writeCounter((int32_t) 0); //Reset of the CVAL register
+    RGBEncoder[3].writeCounter((int32_t) 0); //Reset of the CVAL register
+  }
+
+  // if (!stepper2.isRunning()){
+  //   stepper1.setCurrentPosition(0);
+  //   Serial.println("stepper 1 is at home");
+  //   RGBEncoder[2].writeCounter((int32_t) 0); //Reset of the CVAL register
+  // }
+
+  // stepper2.setCurrentPosition(0);
+  // stepper3.setCurrentPosition(0);
+
   lock_remote = false;
 }
 
@@ -413,9 +440,9 @@ void sendOSCmessage(char* name, int value){
 }
 
 void sendOSCreport(){
-  #ifdef SERIAL_DEBUGING
-    Serial.print("Sending OSC raport ");
-  #endif
+  // #ifdef SERIAL_DEBUGING
+  //   Serial.print("Sending OSC raport ");
+  // #endif
   // TODO fix sending -256 values when remote disconnected
   sendOSCmessage("/aperture", stepper1.currentPosition());
   sendOSCmessage("/focus", stepper2.currentPosition());
@@ -423,7 +450,7 @@ void sendOSCreport(){
   sendOSCmessage("/uptime", uptimeInSecs());
   sendOSCmessage("/ver", FIRMWARE_VERSION);
   #ifdef SERIAL_DEBUGING
-    Serial.println(" *");
+    Serial.print(" *");
   #endif
 }
 
@@ -654,6 +681,11 @@ void loop() {
 
       sendOSCreport();
 
+
+      // NOTE playground, remove for production
+       Serial.print("notor 2 is running: "); Serial.println(stepper2.isRunning());
+
+
       #ifdef NEOPIXEL
         pixels.setPixelColor(0, pixels.Color(0, 0, 150));
         pixels.show();
@@ -689,6 +721,14 @@ void loop() {
   stepper2.run();
   stepper3.run();
 
+
+  if(homeing){
+    if( stepper2.currentPosition() == -100){
+      stepper2.setCurrentPosition(0);
+      Serial.println("stepper 2 is at home");
+      RGBEncoder[2].writeCounter((int32_t) 0); //Reset of the CVAL register
+    }
+  }
 
   #ifdef WEB_SERVER
   // TODO add dynamic IP
@@ -762,15 +802,15 @@ void loop() {
            client.println("</ul>");
 
            client.println("<a href=\"/?buttonA0clicked\"\"><button class=\"button\" type='button'>Apperture @ 0</button></a>");
-           client.println("<a href=\"/?buttonA1000clicked\"\"><button class=\"button\" type='button'>Apperture @ 1000</button></a>");
+           client.println("<a href=\"/?buttonA1000clicked\"\"><button class=\"button\" type='button'>Apperture @ 5000</button></a>");
            client.println("<br />");
 
            client.println("<a href=\"/?buttonF0clicked\"\"><button class=\"button\" type='button'>@Focus 0</button></a>");
-           client.println("<a href=\"/?buttonF1000clicked\"\"><button class=\"button\" type='button'>Focus @ 1000</button></a>");
+           client.println("<a href=\"/?buttonF1000clicked\"\"><button class=\"button\" type='button'>Focus @ 5000</button></a>");
            client.println("<br />");
 
            client.println("<a href=\"/?buttonZ0clicked\"\"><button class=\"button\" type='button'>Zoom @ 0</button></a>");
-           client.println("<a href=\"/?buttonZ1000clicked\"\"><button class=\"button\" type='button'>Zoom @ 1000</button></a>");
+           client.println("<a href=\"/?buttonZ1000clicked\"\"><button class=\"button\" type='button'>Zoom @ 5000</button></a>");
            client.println("<br />");
 
            client.println("</BODY>");
@@ -823,27 +863,27 @@ void loop() {
                Serial.println("Web button pressed, setting aperture to 0");
              #endif
              if (remote_connected){
-               RGBEncoder[0].writeCounter((int32_t) 1000); //Reset of the CVAL register
+               RGBEncoder[0].writeCounter((int32_t) 5000); //Reset of the CVAL register
              }
-             moveMotorToPosition(1, 1000);
+             moveMotorToPosition(1, 5000);
            }
            if (readString.indexOf("?buttonF1000clicked") > 0){
              #ifdef SERIAL_DEBUGING
                Serial.println("Web button pressed, setting focus to 0");
              #endif
              if (remote_connected){
-               RGBEncoder[1].writeCounter((int32_t) 1000); //Reset of the CVAL register
+               RGBEncoder[1].writeCounter((int32_t) 5000); //Reset of the CVAL register
              }
-             moveMotorToPosition(2, 1000);
+             moveMotorToPosition(2, 5000);
            }
            if (readString.indexOf("?buttonZ1000clicked") > 0){
              #ifdef SERIAL_DEBUGING
                Serial.println("Web button pressed, setting zoom to 0");
              #endif
              if (remote_connected){
-               RGBEncoder[2].writeCounter((int32_t) 1000); //Reset of the CVAL register
+               RGBEncoder[2].writeCounter((int32_t) 5000); //Reset of the CVAL register
              }
-             moveMotorToPosition(3, 1000);
+             moveMotorToPosition(3, 5000);
            }
            if (readString.indexOf("?buttonIDclicked") > 0){
              #ifdef SERIAL_DEBUGING
