@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 27
+#define FIRMWARE_VERSION 273
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -67,11 +67,17 @@
 
 //set up the accelStepper intance
 //the "1" tells it we are using a driver
+
 AccelStepper stepper1(AccelStepper::DRIVER, MOTOR1STEP_PIN, MOTOR1DIR_PIN);
 AccelStepper stepper2(AccelStepper::DRIVER, MOTOR2STEP_PIN, MOTOR2DIR_PIN);
 AccelStepper stepper3(AccelStepper::DRIVER, MOTOR3STEP_PIN, MOTOR3DIR_PIN);
 
+// AccelStepper pointers
+AccelStepper *stepper[] = {&stepper1, &stepper2, &stepper3};
+
 bool homeing = false;
+#define HOMEING_POSITION -1000
+
 //------------------------------ I2C encoders ----------------------------------
 // Connections:
 // - -> GND
@@ -138,29 +144,36 @@ char osc_prefix[16];                  // device OSC prefix message, i.e /camera1
 //***************************** Functions *************************************
 
 void moveMotorToPosition(uint8_t motor, int position){
-  switch(motor) {
-    case 1:
       #ifdef SERIAL_DEBUGING
-        Serial.print("moving motor 1 to position:");
-        Serial.println(position);
+        Serial.print("moving motor "); Serial.print(motor); Serial.print(" to position "); Serial.println(position);
       #endif
-      stepper1.moveTo(position);
-      break;
-    case 2:
-      #ifdef SERIAL_DEBUGING
-        Serial.print("moving motor 2 to position:");
-        Serial.println(position);
-      #endif
-      stepper2.moveTo(position);
-      break;
-    case 3:
-      #ifdef SERIAL_DEBUGING
-        Serial.print("moving motor 3 to position:");
-        Serial.println(position);
-      #endif
-      stepper3.moveTo(position);
-      break;
-  }
+
+      // stepper[motor]->moveTo(position);
+
+        switch(motor) {
+          case 0:
+            #ifdef SERIAL_DEBUGING
+              Serial.print("switch moveing motor 1 to position:");
+              Serial.println(position);
+            #endif
+            stepper1.moveTo(position);
+            break;
+          case 1:
+            #ifdef SERIAL_DEBUGING
+              Serial.print("switch moving motor 2 to position:");
+              Serial.println(position);
+              Serial.print("moving motor "); Serial.print(motor); Serial.print(" to position "); Serial.println(position);
+            #endif
+            stepper2.moveTo(position);
+            break;
+          case 2:
+            #ifdef SERIAL_DEBUGING
+              Serial.print("switch moving motor 3 to position:");
+              Serial.println(position);
+            #endif
+            stepper3.moveTo(position);
+            break;
+        }
 }
 
 // -------------------------- Encoder callbacks --------------------------------
@@ -169,22 +182,22 @@ void encoder_rotated(i2cEncoderLibV2* obj) {
   if (obj->readStatus(i2cEncoderLibV2::RINC))
     {
       #ifdef SERIAL_DEBUGING
-        Serial.print("Increment ");
+        Serial.print("Encoder incremented ");
       #endif
     }
     else {
       #ifdef SERIAL_DEBUGING
-        Serial.print("Decrement ");
+        Serial.print("Encoder decremented ");
       #endif
     }
 
-    int motorID = (obj->id) + 1;
+    int motorID = (obj->id);
     int position =obj->readCounterInt();
-    // #ifdef SERIAL_DEBUGING
-    //   Serial.print(motorID);
-    //   Serial.print(": ");
-    //   Serial.println(position);
-    // #endif
+    #ifdef SERIAL_DEBUGING
+      Serial.print(motorID);
+      Serial.print(": ");
+      Serial.println(position);
+    #endif
 
     obj->writeRGBCode(0x00FF00);
 
@@ -252,7 +265,7 @@ void apertureMotorOSChandler(OSCMessage &msg, int addrOffset) {
   if (remote_connected){
     RGBEncoder[0].writeCounter((int32_t) inValue); //Reset of the CVAL register
   }
-  moveMotorToPosition(1, inValue);
+  moveMotorToPosition(0, inValue);
   lock_remote = false;
 }
 
@@ -266,7 +279,7 @@ void focusMotorOSChandler(OSCMessage &msg, int addrOffset) {
   if (remote_connected){
       RGBEncoder[1].writeCounter((int32_t) inValue); //Reset of the CVAL register
   }
-  moveMotorToPosition(2, inValue);
+  moveMotorToPosition(1, inValue);
   lock_remote = false;
 }
 
@@ -281,7 +294,7 @@ void zoomMotorOSChandler(OSCMessage &msg, int addrOffset) {
   if (remote_connected){
     RGBEncoder[2].writeCounter((int32_t) inValue); //Reset of the CVAL register
   }
-  moveMotorToPosition(3, inValue);
+  moveMotorToPosition(2, inValue);
   lock_remote = false;
 }
 
@@ -342,26 +355,10 @@ void resetOSChandler(OSCMessage &msg, int addrOffset) {
   #endif
 
   homeing = true;
-  //TODO replace with for, change stepper1... to array?
-  moveMotorToPosition(1, -100);
-  moveMotorToPosition(2, -100);
-  moveMotorToPosition(3, -100);
 
-  if (remote_connected){
-    RGBEncoder[1].writeCounter((int32_t) 0); //Reset of the CVAL register
-    RGBEncoder[2].writeCounter((int32_t) 0); //Reset of the CVAL register
-    RGBEncoder[3].writeCounter((int32_t) 0); //Reset of the CVAL register
+  for (int i=0; i<3; i++){
+    moveMotorToPosition(i, HOMEING_POSITION);
   }
-
-  // if (!stepper2.isRunning()){
-  //   stepper1.setCurrentPosition(0);
-  //   Serial.println("stepper 1 is at home");
-  //   RGBEncoder[2].writeCounter((int32_t) 0); //Reset of the CVAL register
-  // }
-
-  // stepper2.setCurrentPosition(0);
-  // stepper3.setCurrentPosition(0);
-
   lock_remote = false;
 }
 
@@ -444,9 +441,9 @@ void sendOSCreport(){
   //   Serial.print("Sending OSC raport ");
   // #endif
   // TODO fix sending -256 values when remote disconnected
-  sendOSCmessage("/aperture", stepper1.currentPosition());
-  sendOSCmessage("/focus", stepper2.currentPosition());
-  sendOSCmessage("/zoom", stepper3.currentPosition());
+  sendOSCmessage("/aperture", stepper[0]->currentPosition());
+  sendOSCmessage("/focus", stepper[1]->currentPosition());
+  sendOSCmessage("/zoom", stepper[2]->currentPosition());
   sendOSCmessage("/uptime", uptimeInSecs());
   sendOSCmessage("/ver", FIRMWARE_VERSION);
   #ifdef SERIAL_DEBUGING
@@ -577,14 +574,14 @@ void setup() {
   #endif
 
   // exprimental settings, speed for manual adjustment quick response
-  stepper1.setMaxSpeed(5000);
-  stepper1.setAcceleration(5000);
+  stepper[0]->setMaxSpeed(5000);
+  stepper[0]->setAcceleration(5000);
 
-  stepper2.setMaxSpeed(5000);
-  stepper2.setAcceleration(5000);
+  stepper[1]->setMaxSpeed(5000);
+  stepper[1]->setAcceleration(5000);
 
-  stepper3.setMaxSpeed(5000);
-  stepper3.setAcceleration(5000);
+  stepper[2]->setMaxSpeed(5000);
+  stepper[2]->setAcceleration(5000);
 
 //-------------------------- Initializing ethernet -----------------------------
   pinMode(9, OUTPUT);
@@ -681,25 +678,11 @@ void loop() {
 
       sendOSCreport();
 
-
-      // NOTE playground, remove for production
-       Serial.print("notor 2 is running: "); Serial.println(stepper2.isRunning());
-
-
       #ifdef NEOPIXEL
         pixels.setPixelColor(0, pixels.Color(0, 0, 150));
         pixels.show();
       #endif
     }
-
-    // Serial.print(stepper1.currentPosition());
-    // Serial.print("\t");
-    // Serial.print(stepper2.currentPosition());
-    // Serial.print("\t");
-    // Serial.println(stepper3.currentPosition());
-    //
-    // Serial.print("Remote lock: ");
-    // Serial.println(lock_remote);
   }
 
   // check pots
@@ -717,16 +700,15 @@ void loop() {
     }
   }
 
-  stepper1.run();
-  stepper2.run();
-  stepper3.run();
+  for (int i=0; i<3; i++){
+    stepper[i]->run();
 
-
-  if(homeing){
-    if( stepper2.currentPosition() == -100){
-      stepper2.setCurrentPosition(0);
-      Serial.println("stepper 2 is at home");
-      RGBEncoder[2].writeCounter((int32_t) 0); //Reset of the CVAL register
+    if(homeing && (stepper[i]->currentPosition() == HOMEING_POSITION) ){
+        stepper[i]->setCurrentPosition(0);
+        RGBEncoder[i].writeCounter((int32_t) 0); //Reset of the CVAL register
+        #ifdef SERIAL_DEBUGING
+          Serial.print("stepper "); Serial.print(i); Serial.println(" is at home position");
+        #endif
     }
   }
 
@@ -791,13 +773,13 @@ void loop() {
 
            client.println("<ul>");
              client.println("<li>");
-             client.print("Aperture position: "); client.println(stepper1.currentPosition());
+             client.print("Aperture position: "); client.println(stepper[0]->currentPosition());
              client.println("</li>");
              client.println("<li>");
-             client.print("Focus position: "); client.println(stepper2.currentPosition());
+             client.print("Focus position: "); client.println(stepper[1]->currentPosition());
              client.println("</li>");
              client.println("<li>");
-             client.print("Zoom position: "); client.println(stepper3.currentPosition());
+             client.print("Zoom position: "); client.println(stepper[2]->currentPosition());
              client.println("</li>");
            client.println("</ul>");
 
@@ -838,7 +820,7 @@ void loop() {
              if (remote_connected){
                RGBEncoder[0].writeCounter((int32_t) 0); //Reset of the CVAL register
              }
-             moveMotorToPosition(1, 0);
+             moveMotorToPosition(0, 0);
            }
            if (readString.indexOf("?buttonF0clicked") > 0){
              #ifdef SERIAL_DEBUGING
@@ -847,7 +829,7 @@ void loop() {
              if (remote_connected){
                RGBEncoder[1].writeCounter((int32_t) 0); //Reset of the CVAL register
              }
-             moveMotorToPosition(2, 0);
+             moveMotorToPosition(1, 0);
            }
            if (readString.indexOf("?buttonZ0clicked") > 0){
              #ifdef SERIAL_DEBUGING
@@ -856,7 +838,7 @@ void loop() {
              if (remote_connected){
                RGBEncoder[2].writeCounter((int32_t) 0); //Reset of the CVAL register
              }
-             moveMotorToPosition(3, 0);
+             moveMotorToPosition(2, 0);
            }
            if (readString.indexOf("?buttonA1000clicked") > 0 ){
              #ifdef SERIAL_DEBUGING
@@ -865,7 +847,7 @@ void loop() {
              if (remote_connected){
                RGBEncoder[0].writeCounter((int32_t) 5000); //Reset of the CVAL register
              }
-             moveMotorToPosition(1, 5000);
+             moveMotorToPosition(0, 5000);
            }
            if (readString.indexOf("?buttonF1000clicked") > 0){
              #ifdef SERIAL_DEBUGING
@@ -874,7 +856,7 @@ void loop() {
              if (remote_connected){
                RGBEncoder[1].writeCounter((int32_t) 5000); //Reset of the CVAL register
              }
-             moveMotorToPosition(2, 5000);
+             moveMotorToPosition(1, 5000);
            }
            if (readString.indexOf("?buttonZ1000clicked") > 0){
              #ifdef SERIAL_DEBUGING
@@ -883,7 +865,7 @@ void loop() {
              if (remote_connected){
                RGBEncoder[2].writeCounter((int32_t) 5000); //Reset of the CVAL register
              }
-             moveMotorToPosition(3, 5000);
+             moveMotorToPosition(2, 5000);
            }
            if (readString.indexOf("?buttonIDclicked") > 0){
              #ifdef SERIAL_DEBUGING
