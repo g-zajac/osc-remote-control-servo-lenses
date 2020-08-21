@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 277
+#define FIRMWARE_VERSION 280
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -76,7 +76,7 @@ AccelStepper stepper3(AccelStepper::DRIVER, MOTOR3STEP_PIN, MOTOR3DIR_PIN);
 AccelStepper *stepper[] = {&stepper1, &stepper2, &stepper3};
 
 bool homeing = false;
-#define HOMEING_POSITION -1000
+int HOMEING_POSITION = -1000;
 
 //------------------------------ I2C encoders ----------------------------------
 // Connections:
@@ -282,6 +282,26 @@ void apertureLedOSChandler(OSCMessage &msg, int addrOffset) {
 
   long rgb = 0;
   rgb = ((long)r << 16) | ((long)g << 8 ) | (long)b;
+
+
+//TODO finish concatinating 0x to hex vaue of RGB to translate Color
+
+  // obj->writeRGBCode(0x0000FF);
+  // char hexColor[16];
+  // hexColor[0] = {0};
+  // strcat(hexColor, "0x");
+  // strcat(hexColor, (rgb, HEX));
+
+
+  // char message_osc_header[32];
+  // message_osc_header[0] = {0};
+  // strcat(message_osc_header, osc_prefix);
+  // strcat(message_osc_header, name);
+
+  // #ifdef SERIAL_DEBUGING
+  //   Serial.print("hex with strcat: "); Serial.println(String(hexColor));
+  // #endif
+
 
   #ifdef SERIAL_DEBUGING
     Serial.println("R:" + String(r) + " G:" + String(g) + " B:" + String(b));
@@ -702,11 +722,12 @@ void loop() {
           Serial.print("stepper "); Serial.print(i); Serial.println(" is at home position");
         #endif
     }
-    homeing = false;
     #ifdef NEOPIXEL
       pixels.setPixelColor(0, pixels.Color(0, 0, 0));
       pixels.show();
     #endif
+
+    // TODO where to set homing to false, is it necessery?
   }
 
   #ifdef WEB_SERVER
