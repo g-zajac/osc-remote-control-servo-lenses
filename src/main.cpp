@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 274
+#define FIRMWARE_VERSION 277
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -285,33 +285,50 @@ void apertureLedOSChandler(OSCMessage &msg, int addrOffset) {
 
   #ifdef SERIAL_DEBUGING
     Serial.println("R:" + String(r) + " G:" + String(g) + " B:" + String(b));
-    Serial.print("simply rgb: "); Serial.println(rgb);
-    Serial.println("Hex: " + String(rgb, HEX));
+    Serial.print("aperture rgb: "); Serial.print(rgb);
+    Serial.println(" Hex: " + String(rgb, HEX));
   #endif
 
   RGBEncoder[0].writeRGBCode(rgb);
-  RGBEncoder[1].writeRGBCode(0xFF0000);
+  lock_remote = false;
 }
 
 void focusLedOSChandler(OSCMessage &msg, int addrOffset) {
   // TODO check isadora sending int?
-  int inValue = msg.getFloat(0);
+  int r = msg.getInt(0);
+  int g = msg.getInt(1);
+  int b = msg.getInt(2);
+
+  // TODO to DRY, replace rgb conversion with function
+  long rgb = 0;
+  rgb = ((long)r << 16) | ((long)g << 8 ) | (long)b;
+
   #ifdef SERIAL_DEBUGING
-    Serial.print("focusLedOSChandler: ");
-    Serial.println(inValue);
+    Serial.println("R:" + String(r) + " G:" + String(g) + " B:" + String(b));
+    Serial.print("focus rgb: "); Serial.print(rgb);
+    Serial.println(" Hex: " + String(rgb, HEX));
   #endif
 
+  RGBEncoder[1].writeRGBCode(rgb);
   lock_remote = false;
 }
 
 void zoomLedOSChandler(OSCMessage &msg, int addrOffset) {
   // TODO check isadora sending int?
-  int inValue = msg.getFloat(0);
+  int r = msg.getInt(0);
+  int g = msg.getInt(1);
+  int b = msg.getInt(2);
+
+  long rgb = 0;
+  rgb = ((long)r << 16) | ((long)g << 8 ) | (long)b;
+
   #ifdef SERIAL_DEBUGING
-    Serial.print("zoomLedOSChandler: ");
-    Serial.println(inValue);
+    Serial.println("R:" + String(r) + " G:" + String(g) + " B:" + String(b));
+    Serial.print("zoom rgb: "); Serial.print(rgb);
+    Serial.println("  Hex: " + String(rgb, HEX));
   #endif
 
+  RGBEncoder[2].writeRGBCode(rgb);
   lock_remote = false;
 }
 
