@@ -457,10 +457,10 @@ bool checkEthernetConnection(){
       // Serial.println("Ethernet cable is connected.");
     #endif
 
-    #ifdef NEOPIXEL
-      pixels.setPixelColor(0, pixels.Color(0, 0, 150));
-      pixels.show();
-    #endif
+    // #ifdef NEOPIXEL
+    //   pixels.setPixelColor(0, pixels.Color(0, 0, 150));
+    //   pixels.show();
+    // #endif
 
     return true;
   }
@@ -685,6 +685,11 @@ void loop() {
           Serial.print("stepper "); Serial.print(i); Serial.println(" is at home position");
         #endif
     }
+    homeing = false;
+    #ifdef NEOPIXEL
+      pixels.setPixelColor(0, pixels.Color(0, 0, 0));
+      pixels.show();
+    #endif
   }
 
   #ifdef WEB_SERVER
