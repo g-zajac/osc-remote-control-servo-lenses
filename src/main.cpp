@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 280
+#define FIRMWARE_VERSION 282
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -174,6 +174,7 @@ void encoder_rotated(i2cEncoderLibV2* obj) {
       Serial.println(position);
     #endif
 
+    obj->writeFadeRGB(3);
     obj->writeRGBCode(0x00FF00);
 
     moveMotorToPosition(motorID, position);
@@ -181,6 +182,7 @@ void encoder_rotated(i2cEncoderLibV2* obj) {
 
 void encoder_click(i2cEncoderLibV2* obj) {
 
+  obj->writeFadeRGB(3);
   obj->writeRGBCode(0x0000FF);
 
   int pushed = obj->id;
@@ -283,32 +285,13 @@ void apertureLedOSChandler(OSCMessage &msg, int addrOffset) {
   long rgb = 0;
   rgb = ((long)r << 16) | ((long)g << 8 ) | (long)b;
 
-
-//TODO finish concatinating 0x to hex vaue of RGB to translate Color
-
-  // obj->writeRGBCode(0x0000FF);
-  // char hexColor[16];
-  // hexColor[0] = {0};
-  // strcat(hexColor, "0x");
-  // strcat(hexColor, (rgb, HEX));
-
-
-  // char message_osc_header[32];
-  // message_osc_header[0] = {0};
-  // strcat(message_osc_header, osc_prefix);
-  // strcat(message_osc_header, name);
-
-  // #ifdef SERIAL_DEBUGING
-  //   Serial.print("hex with strcat: "); Serial.println(String(hexColor));
-  // #endif
-
-
   #ifdef SERIAL_DEBUGING
     Serial.println("R:" + String(r) + " G:" + String(g) + " B:" + String(b));
     Serial.print("aperture rgb: "); Serial.print(rgb);
     Serial.println(" Hex: " + String(rgb, HEX));
   #endif
 
+  RGBEncoder[0].writeFadeRGB(0);
   RGBEncoder[0].writeRGBCode(rgb);
   lock_remote = false;
 }
@@ -323,12 +306,14 @@ void focusLedOSChandler(OSCMessage &msg, int addrOffset) {
   long rgb = 0;
   rgb = ((long)r << 16) | ((long)g << 8 ) | (long)b;
 
+
   #ifdef SERIAL_DEBUGING
     Serial.println("R:" + String(r) + " G:" + String(g) + " B:" + String(b));
     Serial.print("focus rgb: "); Serial.print(rgb);
     Serial.println(" Hex: " + String(rgb, HEX));
   #endif
 
+  RGBEncoder[1].writeFadeRGB(0);
   RGBEncoder[1].writeRGBCode(rgb);
   lock_remote = false;
 }
@@ -348,11 +333,19 @@ void zoomLedOSChandler(OSCMessage &msg, int addrOffset) {
     Serial.println("  Hex: " + String(rgb, HEX));
   #endif
 
+  RGBEncoder[2].writeFadeRGB(0);
   RGBEncoder[2].writeRGBCode(rgb);
   lock_remote = false;
 }
 
 // ------------------------------- other handlers ------------------------------
+void resetMotorsPositions(){
+  homeing = true;
+  for (int i=0; i<3; i++){
+    moveMotorToPosition(i, HOMEING_POSITION);
+  }
+}
+
 void resetOSChandler(OSCMessage &msg, int addrOffset) {
   // TODO check isadora sending int?
   int inValue = msg.getFloat(0);
@@ -366,11 +359,8 @@ void resetOSChandler(OSCMessage &msg, int addrOffset) {
     pixels.show();
   #endif
 
-  homeing = true;
+  resetMotorsPositions();
 
-  for (int i=0; i<3; i++){
-    moveMotorToPosition(i, HOMEING_POSITION);
-  }
   lock_remote = false;
 }
 
@@ -771,6 +761,9 @@ void loop() {
            client.print("<a href=\"/?buttonIDclicked\"\"><button class=\"button\" type='button'>Identify Device ");
            client.print(device_id);
            client.println("</button></a>");
+           client.print("<a href=\"/?buttonResetclicked\"\"><button class=\"button\" type='button'>Reset ");
+           client.print(device_id);
+           client.println("</button></a>");
            client.println("<br />");
            client.println("<br />");
 
@@ -894,6 +887,13 @@ void loop() {
                pixels.show();
              #endif
            }
+           if (readString.indexOf("?buttonResetclicked") > 0){
+             #ifdef SERIAL_DEBUGING
+               Serial.println("reset button pressed, homeing motors");
+             #endif
+             resetMotorsPositions();
+           }
+
 
             //clearing string for next read
             readString="";
