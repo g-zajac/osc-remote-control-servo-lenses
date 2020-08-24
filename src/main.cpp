@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 282
+#define FIRMWARE_VERSION 285
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -97,6 +97,7 @@ bool remote_connected = false;
 bool lock_remote = false;
 
 bool toggle[] = { 0, 0, 0 };
+float brightness = 1.0;
 
 //---------------------------- MAC & IP list ----------------------------------
 // id stored in EEPROM, id points on array index and
@@ -151,6 +152,23 @@ void moveMotorToPosition(uint8_t motor, int position){
       stepper[motor]->moveTo(position);
 }
 
+int rgb2hex(int r, int g, int b, float br){
+  r = (int) r * br;
+  g = (int) g * br;
+  b = (int) b * br;
+
+  int color = ((long)r << 16) | ((long)g << 8 ) | (long)b;
+
+  #ifdef SERIAL_DEBUGING
+    Serial.println("COlour conversion function");
+    Serial.print("R:" + String(r) + " G:" + String(g) + " B:" + String(b));
+    Serial.print(" BR: "); Serial.println(br);
+    Serial.print(" color: "); Serial.println(color, HEX);
+  #endif
+
+  return color;
+}
+
 // -------------------------- Encoder callbacks --------------------------------
 //Callback when the encoder is rotated
 void encoder_rotated(i2cEncoderLibV2* obj) {
@@ -172,10 +190,11 @@ void encoder_rotated(i2cEncoderLibV2* obj) {
       Serial.print(motorID);
       Serial.print(": ");
       Serial.println(position);
+      Serial.print("global brightness: "); Serial.println(brightness);
     #endif
 
     obj->writeFadeRGB(3);
-    obj->writeRGBCode(0x00FF00);
+    obj->writeRGBCode(rgb2hex(0, 255, 0, brightness));
 
     moveMotorToPosition(motorID, position);
 }
@@ -183,7 +202,7 @@ void encoder_rotated(i2cEncoderLibV2* obj) {
 void encoder_click(i2cEncoderLibV2* obj) {
 
   obj->writeFadeRGB(3);
-  obj->writeRGBCode(0x0000FF);
+  obj->writeRGBCode(rgb2hex(0, 0, 255, brightness));
 
   int pushed = obj->id;
 
@@ -218,7 +237,7 @@ void encoder_thresholds(i2cEncoderLibV2* obj) {
         Serial.println(obj->id);
       #endif
     }
-    obj->writeRGBCode(0xFF0000);
+    obj->writeRGBCode(rgb2hex(255, 0, 0, brightness));
 }
 
 void encoder_fade(i2cEncoderLibV2* obj) {
@@ -284,12 +303,6 @@ void apertureLedOSChandler(OSCMessage &msg, int addrOffset) {
 
   long rgb = 0;
   rgb = ((long)r << 16) | ((long)g << 8 ) | (long)b;
-
-  #ifdef SERIAL_DEBUGING
-    Serial.println("R:" + String(r) + " G:" + String(g) + " B:" + String(b));
-    Serial.print("aperture rgb: "); Serial.print(rgb);
-    Serial.println(" Hex: " + String(rgb, HEX));
-  #endif
 
   RGBEncoder[0].writeFadeRGB(0);
   RGBEncoder[0].writeRGBCode(rgb);
@@ -366,10 +379,15 @@ void resetOSChandler(OSCMessage &msg, int addrOffset) {
 
 void brightnessHandler(OSCMessage &msg, int addrOffset) {
   // TODO check isadora sending int?
-  int inValue = msg.getFloat(0);
+  float inValue = msg.getFloat(0);
+
+  brightness = inValue;
+
   #ifdef SERIAL_DEBUGING
-    Serial.print("brightnessHandler: ");
+    Serial.print("brightnessHandler received value: ");
     Serial.println(inValue);
+    Serial.print("updated brightness: ");
+    Serial.println(brightness);
   #endif
 
   lock_remote = false;
@@ -511,7 +529,7 @@ void setup() {
     Serial.begin(SERIAL_SPEED);
 
     // add delay when serial connected to catch first logs
-    if (!Serial){ delay(5000); };
+    if (!Serial){ delay(3000); };
   #endif
 
   #ifdef SERIAL_DEBUGING
@@ -576,8 +594,8 @@ void setup() {
   #endif
 
   // exprimental settings, speed for manual adjustment quick response
-  stepper[0]->setMaxSpeed(5000);
-  stepper[0]->setAcceleration(5000);
+  stepper[0]->setMaxSpeed(500);
+  stepper[0]->setAcceleration(500);
 
   stepper[1]->setMaxSpeed(5000);
   stepper[1]->setAcceleration(5000);
@@ -865,9 +883,9 @@ void loop() {
                Serial.println("Web button pressed, setting focus to 0");
              #endif
              if (remote_connected){
-               RGBEncoder[1].writeCounter((int32_t) 5000); //Reset of the CVAL register
+               RGBEncoder[1].writeCounter((int32_t) 2048); //Reset of the CVAL register
              }
-             moveMotorToPosition(1, 5000);
+             moveMotorToPosition(1, 2048);
            }
            if (readString.indexOf("?buttonZ1000clicked") > 0){
              #ifdef SERIAL_DEBUGING
