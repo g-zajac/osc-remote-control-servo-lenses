@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 285
+#define FIRMWARE_VERSION 286
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -78,6 +78,9 @@ AccelStepper *stepper[] = {&stepper1, &stepper2, &stepper3};
 bool homeing = false;
 int HOMEING_POSITION = -1000;
 
+int button1value = 2048;
+int button2value = 2048;
+int button3value = 2048;
 //------------------------------ I2C encoders ----------------------------------
 // Connections:
 // - -> GND
@@ -813,15 +816,21 @@ void loop() {
            client.println("</ul>");
 
            client.println("<a href=\"/?buttonA0clicked\"\"><button class=\"button\" type='button'>Apperture @ 0</button></a>");
-           client.println("<a href=\"/?buttonA1000clicked\"\"><button class=\"button\" type='button'>Apperture @ 5000</button></a>");
+           client.println("<a href=\"/?buttonA1000clicked\"\"><button class=\"button\" type='button'>Apperture @");
+           client.print(button1value);
+           client.println("</button></a>");
            client.println("<br />");
 
-           client.println("<a href=\"/?buttonF0clicked\"\"><button class=\"button\" type='button'>@Focus 0</button></a>");
-           client.println("<a href=\"/?buttonF1000clicked\"\"><button class=\"button\" type='button'>Focus @ 5000</button></a>");
+           client.println("<a href=\"/?buttonF0clicked\"\"><button class=\"button\" type='button'>Focus @ 0</button></a>");
+           client.println("<a href=\"/?buttonF1000clicked\"\"><button class=\"button\" type='button'>Focus @");
+           client.print(button2value);
+           client.println("</button></a>");
            client.println("<br />");
 
            client.println("<a href=\"/?buttonZ0clicked\"\"><button class=\"button\" type='button'>Zoom @ 0</button></a>");
-           client.println("<a href=\"/?buttonZ1000clicked\"\"><button class=\"button\" type='button'>Zoom @ 5000</button></a>");
+           client.println("<a href=\"/?buttonZ1000clicked\"\"><button class=\"button\" type='button'>Zoom @");
+           client.print(button3value);
+           client.println("</button></a>");
            client.println("<br />");
 
            client.println("</BODY>");
@@ -871,30 +880,30 @@ void loop() {
            }
            if (readString.indexOf("?buttonA1000clicked") > 0 ){
              #ifdef SERIAL_DEBUGING
-               Serial.println("Web button pressed, setting aperture to 0");
+               Serial.print("Web button pressed, setting focus to "); Serial.println(button1value);
              #endif
              if (remote_connected){
-               RGBEncoder[0].writeCounter((int32_t) 5000); //Reset of the CVAL register
+               RGBEncoder[0].writeCounter((int32_t) button1value); //Reset of the CVAL register
              }
-             moveMotorToPosition(0, 5000);
+             moveMotorToPosition(0, button1value);
            }
            if (readString.indexOf("?buttonF1000clicked") > 0){
              #ifdef SERIAL_DEBUGING
-               Serial.println("Web button pressed, setting focus to 0");
+               Serial.print("Web button pressed, setting focus to "); Serial.println(button2value);
              #endif
              if (remote_connected){
-               RGBEncoder[1].writeCounter((int32_t) 2048); //Reset of the CVAL register
+               RGBEncoder[1].writeCounter((int32_t) button2value); //Reset of the CVAL register
              }
-             moveMotorToPosition(1, 2048);
+             moveMotorToPosition(1, button2value);
            }
            if (readString.indexOf("?buttonZ1000clicked") > 0){
              #ifdef SERIAL_DEBUGING
-               Serial.println("Web button pressed, setting zoom to 0");
+               Serial.print("Web button pressed, setting focus to "); Serial.println(button3value);
              #endif
              if (remote_connected){
-               RGBEncoder[2].writeCounter((int32_t) 5000); //Reset of the CVAL register
+               RGBEncoder[2].writeCounter((int32_t) button3value); //Reset of the CVAL register
              }
-             moveMotorToPosition(2, 5000);
+             moveMotorToPosition(2, button2value);
            }
            if (readString.indexOf("?buttonIDclicked") > 0){
              #ifdef SERIAL_DEBUGING
