@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 262
+#define FIRMWARE_VERSION 286
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -37,8 +37,9 @@
 #define SERIAL_SPEED 115200
 
 // encoders settings
-#define potStep 1
-#define potMax 1000
+#define potFineStep 1
+#define potCoarseStep 10
+#define potMax 10000
 
 
 //------------------------------------------------------------------------------
@@ -66,10 +67,20 @@
 
 //set up the accelStepper intance
 //the "1" tells it we are using a driver
+
 AccelStepper stepper1(AccelStepper::DRIVER, MOTOR1STEP_PIN, MOTOR1DIR_PIN);
 AccelStepper stepper2(AccelStepper::DRIVER, MOTOR2STEP_PIN, MOTOR2DIR_PIN);
 AccelStepper stepper3(AccelStepper::DRIVER, MOTOR3STEP_PIN, MOTOR3DIR_PIN);
 
+// AccelStepper pointers
+AccelStepper *stepper[] = {&stepper1, &stepper2, &stepper3};
+
+bool homeing = false;
+int HOMEING_POSITION = -1000;
+
+int button1value = 2048;
+int button2value = 2048;
+int button3value = 2048;
 //------------------------------ I2C encoders ----------------------------------
 // Connections:
 // - -> GND
@@ -89,13 +100,14 @@ bool remote_connected = false;
 bool lock_remote = false;
 
 bool toggle[] = { 0, 0, 0 };
+float brightness = 1.0;
 
 //---------------------------- MAC & IP list ----------------------------------
 // id stored in EEPROM, id points on array index and
 // assign MAC and IP for device, they mus be unique within the netowrk
 
 byte MAC_ARRAY[] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07};
-int IP_ARRAY[] = {240, 241, 242, 243, 244, 245, 246, 247};
+int IP_ARRAY[] = {200, 201, 202, 203, 204, 205, 206, 207};
 //-----------------------------------------------------------------------------
 
 // get the device ID from EEPROM
@@ -113,9 +125,9 @@ bool isLANconnected = false;
 EthernetUDP Udp;
 
 // OSC destination address, 255 broadcast
-IPAddress targetIP(10, 0, 10, 101);   // Isadora machine IP address
-const unsigned int destPort = 9999;          // remote port to receive OSC
-const unsigned int localPort = 8888;        // local port to listen for OSC packets
+IPAddress targetIP(10, 0, 10, 255);   // Isadora machine IP address
+const unsigned int destPort = 1234;          // remote port to receive OSC
+const unsigned int localPort = 4321;        // local port to listen for OSC packets
 
 unsigned long previousMillis = 0;
 const long interval = 1000;
@@ -136,64 +148,71 @@ char osc_prefix[16];                  // device OSC prefix message, i.e /camera1
 //***************************** Functions *************************************
 
 void moveMotorToPosition(uint8_t motor, int position){
-  switch(motor) {
-    case 1:
       #ifdef SERIAL_DEBUGING
-        Serial.print("moving motor 1 to position:");
-        Serial.println(position);
+        Serial.print("moving motor "); Serial.print(motor); Serial.print(" to position "); Serial.println(position);
       #endif
-      stepper1.moveTo(position);
-      break;
-    case 2:
-      #ifdef SERIAL_DEBUGING
-        Serial.print("moving motor 2 to position:");
-        Serial.println(position);
-      #endif
-      stepper2.moveTo(position);
-      break;
-    case 3:
-      #ifdef SERIAL_DEBUGING
-        Serial.print("moving motor 3 to position:");
-        Serial.println(position);
-      #endif
-      stepper3.moveTo(position);
-      break;
-  }
+
+      stepper[motor]->moveTo(position);
 }
 
+int rgb2hex(int r, int g, int b, float br){
+  r = (int) r * br;
+  g = (int) g * br;
+  b = (int) b * br;
+
+  int color = ((long)r << 16) | ((long)g << 8 ) | (long)b;
+
+  #ifdef SERIAL_DEBUGING
+    Serial.println("COlour conversion function");
+    Serial.print("R:" + String(r) + " G:" + String(g) + " B:" + String(b));
+    Serial.print(" BR: "); Serial.println(br);
+    Serial.print(" color: "); Serial.println(color, HEX);
+  #endif
+
+  return color;
+}
+
+// -------------------------- Encoder callbacks --------------------------------
 //Callback when the encoder is rotated
 void encoder_rotated(i2cEncoderLibV2* obj) {
   if (obj->readStatus(i2cEncoderLibV2::RINC))
-    #ifdef SERIAL_DEBUGING
-      Serial.print("Increment ");
-    #endif
-  else
-    #ifdef SERIAL_DEBUGING
-      Serial.print("Decrement ");
-    #endif
+    {
+      #ifdef SERIAL_DEBUGING
+        Serial.print("Encoder incremented ");
+      #endif
+    }
+    else {
+      #ifdef SERIAL_DEBUGING
+        Serial.print("Encoder decremented ");
+      #endif
+    }
 
-    int motorID = (obj->id) + 1;
+    int motorID = (obj->id);
     int position =obj->readCounterInt();
-    // #ifdef SERIAL_DEBUGING
-    //   Serial.print(motorID);
-    //   Serial.print(": ");
-    //   Serial.println(position);
-    // #endif
+    #ifdef SERIAL_DEBUGING
+      Serial.print(motorID);
+      Serial.print(": ");
+      Serial.println(position);
+      Serial.print("global brightness: "); Serial.println(brightness);
+    #endif
 
-  obj->writeRGBCode(0x00FF00);
-  moveMotorToPosition(motorID, position);
+    obj->writeFadeRGB(3);
+    obj->writeRGBCode(rgb2hex(0, 255, 0, brightness));
+
+    moveMotorToPosition(motorID, position);
 }
 
 void encoder_click(i2cEncoderLibV2* obj) {
 
-  obj->writeRGBCode(0x0000FF);
+  obj->writeFadeRGB(3);
+  obj->writeRGBCode(rgb2hex(0, 0, 255, brightness));
 
   int pushed = obj->id;
 
   if (toggle[pushed]) {
-    RGBEncoder[pushed].writeStep((int32_t) 1);
+    RGBEncoder[pushed].writeStep((int32_t) potFineStep);
   } else {
-    RGBEncoder[pushed].writeStep((int32_t) 10);
+    RGBEncoder[pushed].writeStep((int32_t) potCoarseStep);
   }
 
   #ifdef SERIAL_DEBUGING
@@ -210,11 +229,18 @@ void encoder_click(i2cEncoderLibV2* obj) {
 
 void encoder_thresholds(i2cEncoderLibV2* obj) {
   if (obj->readStatus(i2cEncoderLibV2::RMAX))
-    Serial.print("Max: ");
-  else
-    Serial.print("Min: ");
-  Serial.println(obj->id);
-  obj->writeRGBCode(0xFF0000);
+    {
+      #ifdef SERIAL_DEBUGING
+        Serial.print("Max: ");
+      #endif
+    }
+    else {
+      #ifdef SERIAL_DEBUGING
+        Serial.print("Min: ");
+        Serial.println(obj->id);
+      #endif
+    }
+    obj->writeRGBCode(rgb2hex(255, 0, 0, brightness));
 }
 
 void encoder_fade(i2cEncoderLibV2* obj) {
@@ -225,49 +251,151 @@ int uptimeInSecs(){
   return (int)(millis()/1000);
 }
 
-void servo1_OSCHandler(OSCMessage &msg, int addrOffset) {
+
+//------------------------------ Stepper handlers ------------------------------
+void apertureMotorOSChandler(OSCMessage &msg, int addrOffset) {
   // TODO replace with one function for all OSC with motor number?
   int inValue = msg.getFloat(0);
   #ifdef SERIAL_DEBUGING
-    Serial.print("osc servo 1 update: ");
+    Serial.print("aperture osc received: ");
     Serial.println(inValue);
   #endif
   // TODO convert float to int?
   if (remote_connected){
     RGBEncoder[0].writeCounter((int32_t) inValue); //Reset of the CVAL register
   }
-  moveMotorToPosition(1, inValue);
+  moveMotorToPosition(0, inValue);
   lock_remote = false;
 }
 
-void servo2_OSCHandler(OSCMessage &msg, int addrOffset) {
+void focusMotorOSChandler(OSCMessage &msg, int addrOffset) {
   int inValue = msg.getFloat(0);
   #ifdef SERIAL_DEBUGING
-    Serial.print("osc servo 2 update: ");
+    Serial.print("focus osc received: ");
     Serial.println(inValue);
   #endif
 
   if (remote_connected){
       RGBEncoder[1].writeCounter((int32_t) inValue); //Reset of the CVAL register
   }
-  moveMotorToPosition(2, inValue);
+  moveMotorToPosition(1, inValue);
   lock_remote = false;
 }
 
-void servo3_OSCHandler(OSCMessage &msg, int addrOffset) {
+void zoomMotorOSChandler(OSCMessage &msg, int addrOffset) {
   // TODO check isadora sending int?
   int inValue = msg.getFloat(0);
   #ifdef SERIAL_DEBUGING
-    Serial.print("osc servo 3 update: ");
+    Serial.print("zoom osc received: ");
     Serial.println(inValue);
   #endif
 
   if (remote_connected){
     RGBEncoder[2].writeCounter((int32_t) inValue); //Reset of the CVAL register
   }
-  moveMotorToPosition(3, inValue);
+  moveMotorToPosition(2, inValue);
   lock_remote = false;
 }
+
+//------------------------------- LED handlers ---------------------------------
+void apertureLedOSChandler(OSCMessage &msg, int addrOffset) {
+  // TODO check isadora sending int?
+  int r = msg.getInt(0);
+  int g = msg.getInt(1);
+  int b = msg.getInt(2);
+
+  long rgb = 0;
+  rgb = ((long)r << 16) | ((long)g << 8 ) | (long)b;
+
+  RGBEncoder[0].writeFadeRGB(0);
+  RGBEncoder[0].writeRGBCode(rgb);
+  lock_remote = false;
+}
+
+void focusLedOSChandler(OSCMessage &msg, int addrOffset) {
+  // TODO check isadora sending int?
+  int r = msg.getInt(0);
+  int g = msg.getInt(1);
+  int b = msg.getInt(2);
+
+  // TODO to DRY, replace rgb conversion with function
+  long rgb = 0;
+  rgb = ((long)r << 16) | ((long)g << 8 ) | (long)b;
+
+
+  #ifdef SERIAL_DEBUGING
+    Serial.println("R:" + String(r) + " G:" + String(g) + " B:" + String(b));
+    Serial.print("focus rgb: "); Serial.print(rgb);
+    Serial.println(" Hex: " + String(rgb, HEX));
+  #endif
+
+  RGBEncoder[1].writeFadeRGB(0);
+  RGBEncoder[1].writeRGBCode(rgb);
+  lock_remote = false;
+}
+
+void zoomLedOSChandler(OSCMessage &msg, int addrOffset) {
+  // TODO check isadora sending int?
+  int r = msg.getInt(0);
+  int g = msg.getInt(1);
+  int b = msg.getInt(2);
+
+  long rgb = 0;
+  rgb = ((long)r << 16) | ((long)g << 8 ) | (long)b;
+
+  #ifdef SERIAL_DEBUGING
+    Serial.println("R:" + String(r) + " G:" + String(g) + " B:" + String(b));
+    Serial.print("zoom rgb: "); Serial.print(rgb);
+    Serial.println("  Hex: " + String(rgb, HEX));
+  #endif
+
+  RGBEncoder[2].writeFadeRGB(0);
+  RGBEncoder[2].writeRGBCode(rgb);
+  lock_remote = false;
+}
+
+// ------------------------------- other handlers ------------------------------
+void resetMotorsPositions(){
+  homeing = true;
+  for (int i=0; i<3; i++){
+    moveMotorToPosition(i, HOMEING_POSITION);
+  }
+}
+
+void resetOSChandler(OSCMessage &msg, int addrOffset) {
+  // TODO check isadora sending int?
+  int inValue = msg.getFloat(0);
+  #ifdef SERIAL_DEBUGING
+    Serial.print("resetOSChandler: ");
+    Serial.println(inValue);
+  #endif
+
+  #ifdef NEOPIXEL
+    pixels.setPixelColor(0, pixels.Color(255, 0, 0));
+    pixels.show();
+  #endif
+
+  resetMotorsPositions();
+
+  lock_remote = false;
+}
+
+void brightnessHandler(OSCMessage &msg, int addrOffset) {
+  // TODO check isadora sending int?
+  float inValue = msg.getFloat(0);
+
+  brightness = inValue;
+
+  #ifdef SERIAL_DEBUGING
+    Serial.print("brightnessHandler received value: ");
+    Serial.println(inValue);
+    Serial.print("updated brightness: ");
+    Serial.println(brightness);
+  #endif
+
+  lock_remote = false;
+}
+//------------------------------------------------------------------------------
 
 void receiveOSCsingle(){
   // read incoming udp packets
@@ -284,14 +412,23 @@ void receiveOSCsingle(){
     if(!msgIn.hasError()) {
       // TODO add dynamic device number based on setting
       lock_remote = true;
-      msgIn.route("/aperture", servo1_OSCHandler);
-      msgIn.route("/focus", servo2_OSCHandler);
-      msgIn.route("/zoom", servo3_OSCHandler);
+      msgIn.route("/aperture", apertureMotorOSChandler);
+      msgIn.route("/focus", focusMotorOSChandler);
+      msgIn.route("/zoom", zoomMotorOSChandler);
+
+      msgIn.route("/ledAperture", apertureLedOSChandler);
+      msgIn.route("/ledFocus", focusLedOSChandler);
+      msgIn.route("/ledZoom", zoomLedOSChandler);
+
+      msgIn.route("/brightness", brightnessHandler);
+      // TODO set motors to -100 and set poistions at 0
+      // NOTE when receive 1 only
+      msgIn.route("/reset", resetOSChandler);
       // msgIn.route("/device1/localise", localise_OSCHandler);
 
       #ifdef NEOPIXEL
-      pixels.setPixelColor(0, pixels.Color(255, 0, 150));
-      pixels.show();
+        pixels.setPixelColor(0, pixels.Color(255, 0, 150));
+        pixels.show();
       #endif
     }
 
@@ -323,16 +460,17 @@ void sendOSCmessage(char* name, int value){
 }
 
 void sendOSCreport(){
-  #ifdef SERIAL_DEBUGING
-    Serial.print("Sending OSC raport ");
-  #endif
-  sendOSCmessage("/ver", FIRMWARE_VERSION);
+  // #ifdef SERIAL_DEBUGING
+  //   Serial.print("Sending OSC raport ");
+  // #endif
+  // TODO fix sending -256 values when remote disconnected
+  sendOSCmessage("/aperture", stepper[0]->currentPosition());
+  sendOSCmessage("/focus", stepper[1]->currentPosition());
+  sendOSCmessage("/zoom", stepper[2]->currentPosition());
   sendOSCmessage("/uptime", uptimeInSecs());
-  sendOSCmessage("/m1position", stepper1.currentPosition());
-  sendOSCmessage("/m2position", stepper2.currentPosition());
-  sendOSCmessage("/m3position", stepper3.currentPosition());
+  sendOSCmessage("/ver", FIRMWARE_VERSION);
   #ifdef SERIAL_DEBUGING
-    Serial.println(" *");
+    Serial.print(" *");
   #endif
 }
 
@@ -340,7 +478,7 @@ bool checkEthernetConnection(){
   // // Check for Ethernet hardware present
   if (Ethernet.hardwareStatus() == EthernetNoHardware) {
     #ifdef SERIAL_DEBUGING
-      Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
+      // Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
     #endif
 
     #ifdef NEOPIXEL
@@ -352,7 +490,7 @@ bool checkEthernetConnection(){
   }
   else if (Ethernet.linkStatus() == LinkOFF) {
     #ifdef SERIAL_DEBUGING
-      Serial.println("Ethernet cable is not connected.");
+      // Serial.println("Ethernet cable is not connected.");
     #endif
 
     #ifdef NEOPIXEL
@@ -364,13 +502,13 @@ bool checkEthernetConnection(){
   }
   else if (Ethernet.linkStatus() == LinkON) {
     #ifdef SERIAL_DEBUGING
-      Serial.println("Ethernet cable is connected.");
+      // Serial.println("Ethernet cable is connected.");
     #endif
 
-    #ifdef NEOPIXEL
-      pixels.setPixelColor(0, pixels.Color(0, 0, 150));
-      pixels.show();
-    #endif
+    // #ifdef NEOPIXEL
+    //   pixels.setPixelColor(0, pixels.Color(0, 0, 150));
+    //   pixels.show();
+    // #endif
 
     return true;
   }
@@ -392,10 +530,10 @@ void setup() {
 
   #ifdef SERIAL_DEBUGING
     Serial.begin(SERIAL_SPEED);
-  #endif
 
-  // for debaging, wait for serial
-  // while (!Serial){}
+    // add delay when serial connected to catch first logs
+    if (!Serial){ delay(3000); };
+  #endif
 
   #ifdef SERIAL_DEBUGING
     Serial.print("\r\nFirmware Ver: "); Serial.print(FIRMWARE_VERSION);
@@ -434,7 +572,7 @@ void setup() {
       RGBEncoder[enc_cnt].writeCounter((int32_t) 0); //Reset of the CVAL register
       RGBEncoder[enc_cnt].writeMax((int32_t) potMax); //Set the maximum threshold to 50
       RGBEncoder[enc_cnt].writeMin((int32_t) 0); //Set the minimum threshold to 0
-      RGBEncoder[enc_cnt].writeStep((int32_t) potStep); //The step at every encoder click is 1
+      RGBEncoder[enc_cnt].writeStep((int32_t) potFineStep); //The step at every encoder click is 1
       RGBEncoder[enc_cnt].writeRGBCode(0);
       RGBEncoder[enc_cnt].writeFadeRGB(3); //Fade enabled with 3ms step
       RGBEncoder[enc_cnt].writeAntibouncingPeriod(25); //250ms of debouncing
@@ -459,14 +597,14 @@ void setup() {
   #endif
 
   // exprimental settings, speed for manual adjustment quick response
-  stepper1.setMaxSpeed(5000);
-  stepper1.setAcceleration(5000);
+  stepper[0]->setMaxSpeed(500);
+  stepper[0]->setAcceleration(500);
 
-  stepper2.setMaxSpeed(5000);
-  stepper2.setAcceleration(5000);
+  stepper[1]->setMaxSpeed(5000);
+  stepper[1]->setAcceleration(5000);
 
-  stepper3.setMaxSpeed(5000);
-  stepper3.setAcceleration(5000);
+  stepper[2]->setMaxSpeed(5000);
+  stepper[2]->setAcceleration(5000);
 
 //-------------------------- Initializing ethernet -----------------------------
   pinMode(9, OUTPUT);
@@ -493,12 +631,11 @@ void setup() {
   strcat(bonjour_name, "camera");
   strcat(bonjour_name, id);
 
-  // decelared globally for accesing in loop in web site
-  strcat(web_address, bonjour_name);
-  strcat(web_address, ".local");
-
-  // temporary for debaging
-  delay(5000);
+  #ifdef WEB_SERVER
+    // decelared globally for accesing in loop in web site
+    strcat(web_address, bonjour_name);
+    strcat(web_address, ".local");
+  #endif
 
   #ifdef SERIAL_DEBUGING
     Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
@@ -515,8 +652,10 @@ void setup() {
     Serial.println(osc_prefix);
     Serial.print("Bonjour name: ");
     Serial.println(bonjour_name);
-    Serial.print("Web refresh link: ");
-    Serial.println(web_address);
+    #ifdef WEB_SERVER
+      Serial.print("Web refresh link: ");
+      Serial.println(web_address);
+    #endif
     Serial.println();
     Serial.println("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
   #endif
@@ -542,15 +681,17 @@ void setup() {
 //=================================== LOOP =====================================
 
 void loop() {
-  EthernetBonjour.run();
+  isLANconnected = checkEthernetConnection();
 
-  receiveOSCsingle();
+  if (isLANconnected){
+    EthernetBonjour.run();
+    receiveOSCsingle();
+  }
 
   unsigned long currentMillis = millis();
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
 
-    isLANconnected = checkEthernetConnection();
     if (isLANconnected){
 
       #ifdef NEOPIXEL
@@ -565,15 +706,6 @@ void loop() {
         pixels.show();
       #endif
     }
-
-    Serial.print(stepper1.currentPosition());
-    Serial.print("\t");
-    Serial.print(stepper2.currentPosition());
-    Serial.print("\t");
-    Serial.println(stepper3.currentPosition());
-
-    Serial.print("Remote lock: ");
-    Serial.println(lock_remote);
   }
 
   // check pots
@@ -591,10 +723,23 @@ void loop() {
     }
   }
 
-  stepper1.run();
-  stepper2.run();
-  stepper3.run();
+  for (int i=0; i<3; i++){
+    stepper[i]->run();
 
+    if(homeing && (stepper[i]->currentPosition() == HOMEING_POSITION) ){
+        stepper[i]->setCurrentPosition(0);
+        RGBEncoder[i].writeCounter((int32_t) 0); //Reset of the CVAL register
+        #ifdef SERIAL_DEBUGING
+          Serial.print("stepper "); Serial.print(i); Serial.println(" is at home position");
+        #endif
+    }
+    #ifdef NEOPIXEL
+      pixels.setPixelColor(0, pixels.Color(0, 0, 0));
+      pixels.show();
+    #endif
+
+    // TODO where to set homing to false, is it necessery?
+  }
 
   #ifdef WEB_SERVER
   // TODO add dynamic IP
@@ -637,6 +782,9 @@ void loop() {
            client.print("<a href=\"/?buttonIDclicked\"\"><button class=\"button\" type='button'>Identify Device ");
            client.print(device_id);
            client.println("</button></a>");
+           client.print("<a href=\"/?buttonResetclicked\"\"><button class=\"button\" type='button'>Reset ");
+           client.print(device_id);
+           client.println("</button></a>");
            client.println("<br />");
            client.println("<br />");
 
@@ -657,26 +805,32 @@ void loop() {
 
            client.println("<ul>");
              client.println("<li>");
-             client.print("Aperture position: "); client.println(stepper1.currentPosition());
+             client.print("Aperture position: "); client.println(stepper[0]->currentPosition());
              client.println("</li>");
              client.println("<li>");
-             client.print("Focus position: "); client.println(stepper2.currentPosition());
+             client.print("Focus position: "); client.println(stepper[1]->currentPosition());
              client.println("</li>");
              client.println("<li>");
-             client.print("Zoom position: "); client.println(stepper3.currentPosition());
+             client.print("Zoom position: "); client.println(stepper[2]->currentPosition());
              client.println("</li>");
            client.println("</ul>");
 
            client.println("<a href=\"/?buttonA0clicked\"\"><button class=\"button\" type='button'>Apperture @ 0</button></a>");
-           client.println("<a href=\"/?buttonA1000clicked\"\"><button class=\"button\" type='button'>Apperture @ 1000</button></a>");
+           client.println("<a href=\"/?buttonA1000clicked\"\"><button class=\"button\" type='button'>Apperture @");
+           client.print(button1value);
+           client.println("</button></a>");
            client.println("<br />");
 
-           client.println("<a href=\"/?buttonF0clicked\"\"><button class=\"button\" type='button'>@Focus 0</button></a>");
-           client.println("<a href=\"/?buttonF1000clicked\"\"><button class=\"button\" type='button'>Focus @ 1000</button></a>");
+           client.println("<a href=\"/?buttonF0clicked\"\"><button class=\"button\" type='button'>Focus @ 0</button></a>");
+           client.println("<a href=\"/?buttonF1000clicked\"\"><button class=\"button\" type='button'>Focus @");
+           client.print(button2value);
+           client.println("</button></a>");
            client.println("<br />");
 
            client.println("<a href=\"/?buttonZ0clicked\"\"><button class=\"button\" type='button'>Zoom @ 0</button></a>");
-           client.println("<a href=\"/?buttonZ1000clicked\"\"><button class=\"button\" type='button'>Zoom @ 1000</button></a>");
+           client.println("<a href=\"/?buttonZ1000clicked\"\"><button class=\"button\" type='button'>Zoom @");
+           client.print(button3value);
+           client.println("</button></a>");
            client.println("<br />");
 
            client.println("</BODY>");
@@ -684,7 +838,7 @@ void loop() {
 
            client.println("<style type='text/css'>");
              client.println("body {background-color: #222222; color: #fefefe;}");
-             client.println("h3 {color: #104bab}");
+             // client.println("h3 {color: #104bab}");
              client.println("h4 {color: rgb(255, 255, 255)}");
              client.println(".button { background-color: #104bab; color: white; border: none; border-radius: 4px; display: inline-block;");
              client.println("text-decoration: none; margin: 2px; padding: 14px 10px; width: 40%; cursor: pointer;}");
@@ -701,37 +855,55 @@ void loop() {
              #ifdef SERIAL_DEBUGING
                Serial.println("Web button pressed, setting aperture to 0");
              #endif
-             moveMotorToPosition(1, 0);
+             if (remote_connected){
+               RGBEncoder[0].writeCounter((int32_t) 0); //Reset of the CVAL register
+             }
+             moveMotorToPosition(0, 0);
            }
            if (readString.indexOf("?buttonF0clicked") > 0){
              #ifdef SERIAL_DEBUGING
                Serial.println("Web button pressed, setting focus to 0");
              #endif
-             moveMotorToPosition(2, 0);
+             if (remote_connected){
+               RGBEncoder[1].writeCounter((int32_t) 0); //Reset of the CVAL register
+             }
+             moveMotorToPosition(1, 0);
            }
            if (readString.indexOf("?buttonZ0clicked") > 0){
              #ifdef SERIAL_DEBUGING
                Serial.println("Web button pressed, setting zoom to 0");
              #endif
-             moveMotorToPosition(3, 0);
+             if (remote_connected){
+               RGBEncoder[2].writeCounter((int32_t) 0); //Reset of the CVAL register
+             }
+             moveMotorToPosition(2, 0);
            }
            if (readString.indexOf("?buttonA1000clicked") > 0 ){
              #ifdef SERIAL_DEBUGING
-               Serial.println("Web button pressed, setting aperture to 0");
+               Serial.print("Web button pressed, setting focus to "); Serial.println(button1value);
              #endif
-             moveMotorToPosition(1, 1000);
+             if (remote_connected){
+               RGBEncoder[0].writeCounter((int32_t) button1value); //Reset of the CVAL register
+             }
+             moveMotorToPosition(0, button1value);
            }
            if (readString.indexOf("?buttonF1000clicked") > 0){
              #ifdef SERIAL_DEBUGING
-               Serial.println("Web button pressed, setting focus to 0");
+               Serial.print("Web button pressed, setting focus to "); Serial.println(button2value);
              #endif
-             moveMotorToPosition(2, 1000);
+             if (remote_connected){
+               RGBEncoder[1].writeCounter((int32_t) button2value); //Reset of the CVAL register
+             }
+             moveMotorToPosition(1, button2value);
            }
            if (readString.indexOf("?buttonZ1000clicked") > 0){
              #ifdef SERIAL_DEBUGING
-               Serial.println("Web button pressed, setting zoom to 0");
+               Serial.print("Web button pressed, setting focus to "); Serial.println(button3value);
              #endif
-             moveMotorToPosition(3, 1000);
+             if (remote_connected){
+               RGBEncoder[2].writeCounter((int32_t) button3value); //Reset of the CVAL register
+             }
+             moveMotorToPosition(2, button2value);
            }
            if (readString.indexOf("?buttonIDclicked") > 0){
              #ifdef SERIAL_DEBUGING
@@ -742,6 +914,13 @@ void loop() {
                pixels.show();
              #endif
            }
+           if (readString.indexOf("?buttonResetclicked") > 0){
+             #ifdef SERIAL_DEBUGING
+               Serial.println("reset button pressed, homeing motors");
+             #endif
+             resetMotorsPositions();
+           }
+
 
             //clearing string for next read
             readString="";
