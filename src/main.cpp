@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 286
+#define FIRMWARE_VERSION 300
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -597,8 +597,8 @@ void setup() {
   #endif
 
   // exprimental settings, speed for manual adjustment quick response
-  stepper[0]->setMaxSpeed(500);
-  stepper[0]->setAcceleration(500);
+  stepper[0]->setMaxSpeed(5000);
+  stepper[0]->setAcceleration(5000);
 
   stepper[1]->setMaxSpeed(5000);
   stepper[1]->setAcceleration(5000);
