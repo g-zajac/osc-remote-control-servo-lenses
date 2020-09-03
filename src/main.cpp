@@ -85,6 +85,7 @@ int HOMEING_POSITION_ZOOM = -6128;
 
 int HOMING_POSITIONS[] = { HOMEING_POSITION_APERTURE, HOMEING_POSITION_FOCUS, HOMEING_POSITION_ZOOM };
 
+// default motors speed and acceleration
 #define APERTURE_SPEED 1000
 #define APERTURE_ACCELERATION 1000
 
@@ -102,9 +103,9 @@ int button3value = 2048;
 // Connections:
 // - -> GND
 // + -> 3V3V
-// SDA -> A4
-// SCL -> A5
-// INT -> 3 temporary for tests
+// SDA -> 18
+// SCL -> 19
+// INT -> 17
 
 //Class initialization with the I2C addresses
 i2cEncoderLibV2 RGBEncoder[ENCODER_N] = { i2cEncoderLibV2(0x01),
@@ -371,7 +372,29 @@ void zoomLedOSChandler(OSCMessage &msg, int addrOffset) {
   lock_remote = false;
 }
 
+// ---------------------------- parameters handlers ----------------------------
+
+void setApertureLimitOSChandler(OSCMessage &msg, int addrOffset) {
+  // TODO check isadora sending int?
+  int inValue = msg.getFloat(0);
+  #ifdef SERIAL_DEBUGING
+    Serial.print("setApertureLimitOSChandler: ");
+    Serial.println(inValue);
+  #endif
+
+  #ifdef NEOPIXEL
+    pixels.setPixelColor(0, pixels.Color(255, 0, 0));
+    pixels.show();
+  #endif
+
+
+
+  lock_remote = false;
+}
+
 // ------------------------------- other handlers ------------------------------
+
+
 void resetMotorsPositions(){
   homeing = true;
   for (int i=0; i<3; i++){
@@ -438,10 +461,12 @@ void receiveOSCsingle(){
       msgIn.route("/ledZoom", zoomLedOSChandler);
 
       msgIn.route("/brightness", brightnessHandler);
-      // TODO set motors to -100 and set poistions at 0
+
       // NOTE when receive 1 only
       msgIn.route("/reset", resetOSChandler);
-      // msgIn.route("/device1/localise", localise_OSCHandler);
+      msgIn.route("/limit/aperture", setApertureLimitOSChandler);
+      // msgIn.route("/limit/focus", setFocusLimitOSChandler);
+      // msgIn.route("/limit/zoom", setZoomLimitOSChandler);
 
       #ifdef NEOPIXEL
         pixels.setPixelColor(0, pixels.Color(255, 0, 150));
