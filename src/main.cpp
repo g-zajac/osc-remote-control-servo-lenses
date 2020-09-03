@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 300
+#define FIRMWARE_VERSION 301
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -25,6 +25,7 @@
 // Zoom
 #define MOTOR3DIR_PIN 15
 #define MOTOR3STEP_PIN 14
+
 
 #define ENCODER_N 3 //Number limit of the encoder
 #define INT_PIN 17 // Definition of the encoder interrupt pin
@@ -76,7 +77,23 @@ AccelStepper stepper3(AccelStepper::DRIVER, MOTOR3STEP_PIN, MOTOR3DIR_PIN);
 AccelStepper *stepper[] = {&stepper1, &stepper2, &stepper3};
 
 bool homeing = false;
-int HOMEING_POSITION = -1000;
+
+// default values, may be overwritten by OSC
+int HOMEING_POSITION_APERTURE = -2040;
+int HOMEING_POSITION_FOCUS = -4096;
+int HOMEING_POSITION_ZOOM = -6128;
+
+int HOMING_POSITIONS[] = { HOMEING_POSITION_APERTURE, HOMEING_POSITION_FOCUS, HOMEING_POSITION_ZOOM };
+
+#define APERTURE_SPEED 1000
+#define APERTURE_ACCELERATION 1000
+
+#define FOCUS_SPEED 1000
+#define FOCUS_ACCELERATION 1000
+
+#define ZOOM_SPEED 1000
+#define ZOOM_ACCELERATION 1000
+
 
 int button1value = 2048;
 int button2value = 2048;
@@ -358,7 +375,7 @@ void zoomLedOSChandler(OSCMessage &msg, int addrOffset) {
 void resetMotorsPositions(){
   homeing = true;
   for (int i=0; i<3; i++){
-    moveMotorToPosition(i, HOMEING_POSITION);
+    moveMotorToPosition(i, HOMING_POSITIONS[i]);
   }
 }
 
@@ -597,14 +614,14 @@ void setup() {
   #endif
 
   // exprimental settings, speed for manual adjustment quick response
-  stepper[0]->setMaxSpeed(5000);
-  stepper[0]->setAcceleration(5000);
+  stepper[0]->setMaxSpeed(APERTURE_SPEED);
+  stepper[0]->setAcceleration(APERTURE_ACCELERATION);
 
-  stepper[1]->setMaxSpeed(5000);
-  stepper[1]->setAcceleration(5000);
+  stepper[1]->setMaxSpeed(FOCUS_SPEED);
+  stepper[1]->setAcceleration(FOCUS_ACCELERATION);
 
-  stepper[2]->setMaxSpeed(5000);
-  stepper[2]->setAcceleration(5000);
+  stepper[2]->setMaxSpeed(ZOOM_SPEED);
+  stepper[2]->setAcceleration(ZOOM_ACCELERATION);
 
 //-------------------------- Initializing ethernet -----------------------------
   pinMode(9, OUTPUT);
@@ -726,7 +743,7 @@ void loop() {
   for (int i=0; i<3; i++){
     stepper[i]->run();
 
-    if(homeing && (stepper[i]->currentPosition() == HOMEING_POSITION) ){
+    if(homeing && (stepper[i]->currentPosition() == HOMING_POSITIONS[i]) ){
         stepper[i]->setCurrentPosition(0);
         RGBEncoder[i].writeCounter((int32_t) 0); //Reset of the CVAL register
         #ifdef SERIAL_DEBUGING
