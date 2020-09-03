@@ -76,23 +76,23 @@ AccelStepper stepper3(AccelStepper::DRIVER, MOTOR3STEP_PIN, MOTOR3DIR_PIN);
 // AccelStepper pointers
 AccelStepper *stepper[] = {&stepper1, &stepper2, &stepper3};
 
-bool homeing = false;
+bool homeing[] = { false, false, false };
 
 // default values, may be overwritten by OSC
-int HOMEING_POSITION_APERTURE = -2040;
-int HOMEING_POSITION_FOCUS = -4096;
-int HOMEING_POSITION_ZOOM = -6128;
+int HOMEING_POSITION_APERTURE = -2048;
+int HOMEING_POSITION_FOCUS = -2048;
+int HOMEING_POSITION_ZOOM = -2048;
 
 int HOMING_POSITIONS[] = { HOMEING_POSITION_APERTURE, HOMEING_POSITION_FOCUS, HOMEING_POSITION_ZOOM };
 
 // default motors speed and acceleration
-#define APERTURE_SPEED 1000
+#define APERTURE_SPEED 500
 #define APERTURE_ACCELERATION 1000
 
-#define FOCUS_SPEED 1000
+#define FOCUS_SPEED 500
 #define FOCUS_ACCELERATION 1000
 
-#define ZOOM_SPEED 1000
+#define ZOOM_SPEED 500
 #define ZOOM_ACCELERATION 1000
 
 
@@ -143,7 +143,7 @@ bool isLANconnected = false;
 EthernetUDP Udp;
 
 // OSC destination address, 255 broadcast
-IPAddress targetIP(10, 0, 10, 255);   // Isadora machine IP address
+IPAddress targetIP(10, 0, 10, 101);   // Isadora machine IP address
 const unsigned int destPort = 1234;          // remote port to receive OSC
 const unsigned int localPort = 4321;        // local port to listen for OSC packets
 
@@ -306,6 +306,7 @@ int receiveOSCvalue(OSCMessage &msg){
   return inValue;
 }
 
+
 void apertureMotorOSChandler(OSCMessage &msg, int addrOffset) {
   int inValue = receiveOSCvalue(msg);
 
@@ -395,23 +396,54 @@ void zoomLedOSChandler(OSCMessage &msg, int addrOffset) {
 
 // ---------------------------- parameters handlers ----------------------------
 
-void setApertureLimitOSChandler(OSCMessage &msg, int addrOffset) {
+void resetAperturePositionOSCHandler(OSCMessage &msg, int addrOffset) {
   int inValue = receiveOSCvalue(msg);
 
   #ifdef NEOPIXEL
+    // TODO add global color
     pixels.setPixelColor(0, pixels.Color(255, 0, 0));
     pixels.show();
   #endif
 
+  HOMING_POSITIONS[0] = inValue;
+
   lock_remote = false;
 }
 
+void resetFocusPositionOSCHandler(OSCMessage &msg, int addrOffset) {
+  int inValue = receiveOSCvalue(msg);
+
+  #ifdef NEOPIXEL
+    // TODO add global color
+    pixels.setPixelColor(0, pixels.Color(255, 0, 0));
+    pixels.show();
+  #endif
+
+  HOMING_POSITIONS[1] = inValue;
+
+  lock_remote = false;
+}
+
+void resetZoomPositionOSCHandler(OSCMessage &msg, int addrOffset) {
+  int inValue = receiveOSCvalue(msg);
+
+  #ifdef NEOPIXEL
+    // TODO add global color
+    pixels.setPixelColor(0, pixels.Color(255, 0, 0));
+    pixels.show();
+  #endif
+
+  HOMING_POSITIONS[2] = inValue;
+
+  lock_remote = false;
+}
 // ------------------------------- other handlers ------------------------------
 
 
 void resetMotorsPositions(){
-  homeing = true;
+
   for (int i=0; i<3; i++){
+    homeing[i] = true;
     moveMotorToPosition(i, HOMING_POSITIONS[i]);
   }
 }
@@ -425,8 +457,6 @@ void resetOSChandler(OSCMessage &msg, int addrOffset) {
   #endif
 
   resetMotorsPositions();
-
-  lock_remote = false;
 }
 
 void brightnessHandler(OSCMessage &msg, int addrOffset) {
@@ -457,11 +487,21 @@ void receiveOSCsingle(){
 
     // route messages
     if(!msgIn.hasError()) {
-      // TODO add dynamic device number based on setting
+
       lock_remote = true;
-      msgIn.route("/aperture", apertureMotorOSChandler);
-      msgIn.route("/focus", focusMotorOSChandler);
-      msgIn.route("/zoom", zoomMotorOSChandler);
+
+      // block osc messages when at least on motor is homeing
+      if(!homeing[0] && !homeing[1] && !homeing[2]){
+        msgIn.route("/resetPosition/aperture", resetAperturePositionOSCHandler);
+        msgIn.route("/resetPosition/focus", resetFocusPositionOSCHandler);
+        msgIn.route("/resetPosition/zoom", resetZoomPositionOSCHandler);
+
+        msgIn.route("/aperture", apertureMotorOSChandler);
+        msgIn.route("/focus", focusMotorOSChandler);
+        msgIn.route("/zoom", zoomMotorOSChandler);
+
+        msgIn.route("/reset", resetOSChandler);
+      }
 
       msgIn.route("/ledAperture", apertureLedOSChandler);
       msgIn.route("/ledFocus", focusLedOSChandler);
@@ -469,9 +509,9 @@ void receiveOSCsingle(){
 
       msgIn.route("/brightness", brightnessHandler);
 
-      // NOTE when receive 1 only
-      msgIn.route("/reset", resetOSChandler);
-      msgIn.route("/limit/aperture", setApertureLimitOSChandler);
+      // msgIn.route("/limit/max/aperture", setApertureMaxLimitOSChandler);
+      // msgIn.route("/limit/min/aperture", setApertureMinLimitOSChandler);
+
       // msgIn.route("/limit/focus", setFocusLimitOSChandler);
       // msgIn.route("/limit/zoom", setZoomLimitOSChandler);
 
@@ -750,6 +790,9 @@ void loop() {
 
       sendOSCreport();
 
+      Serial.print("homeing: "); Serial.print(homeing[0]); Serial.print(homeing[1]); Serial.println(homeing[2]);
+      Serial.print("remote lock: "); Serial.println(lock_remote);
+
       #ifdef NEOPIXEL
         pixels.setPixelColor(0, pixels.Color(0, 0, 150));
         pixels.show();
@@ -760,7 +803,7 @@ void loop() {
   // check pots
   uint8_t enc_cnt;
 
-  if (remote_connected){
+  if (remote_connected && !lock_remote){
     if (digitalRead(INT_PIN) == LOW) {
       //Interrupt from the encoders, start to scan the encoder matrix
       for (enc_cnt = 0; enc_cnt < ENCODER_N; enc_cnt++) {
@@ -775,17 +818,26 @@ void loop() {
   for (int i=0; i<3; i++){
     stepper[i]->run();
 
-    if(homeing && (stepper[i]->currentPosition() == HOMING_POSITIONS[i]) ){
+    if(homeing[i] && (stepper[i]->currentPosition() == HOMING_POSITIONS[i]) ){
         stepper[i]->setCurrentPosition(0);
         RGBEncoder[i].writeCounter((int32_t) 0); //Reset of the CVAL register
         #ifdef SERIAL_DEBUGING
           Serial.print("stepper "); Serial.print(i); Serial.println(" is at home position");
         #endif
+
+        homeing[i] = false;
+
+        // if all restarted then unlock remote
+        if ( !homeing[0] && !homeing[1] && !homeing[2] ){
+          Serial.println("All motors reset to 0");
+          lock_remote = false;
+        }
     }
-    #ifdef NEOPIXEL
-      pixels.setPixelColor(0, pixels.Color(0, 0, 0));
-      pixels.show();
-    #endif
+
+    // #ifdef NEOPIXEL
+    //   pixels.setPixelColor(0, pixels.Color(0, 0, 0));
+    //   pixels.show();
+    // #endif
 
     // TODO where to set homing to false, is it necessery?
   }
