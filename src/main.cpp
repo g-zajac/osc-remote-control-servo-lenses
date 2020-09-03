@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 301
+#define FIRMWARE_VERSION 303
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -271,14 +271,44 @@ int uptimeInSecs(){
 
 
 //------------------------------ Stepper handlers ------------------------------
-void apertureMotorOSChandler(OSCMessage &msg, int addrOffset) {
-  // TODO replace with one function for all OSC with motor number?
-  int inValue = msg.getFloat(0);
+
+// osc receiver msg function
+int receiveOSCvalue(OSCMessage &msg){
+
+  char address[255];
+  msg.getAddress(address, 0);
+
+  int inValue;
+  bool isFloat;
+
+  if (msg.isInt(0)){
+    isFloat = false;
+    inValue = msg.getInt(0);
+  } else if(msg.isFloat(0)){
+    isFloat = true;
+    inValue = msg.getFloat(0);
+  }
+
   #ifdef SERIAL_DEBUGING
-    Serial.print("aperture osc received: ");
+    Serial.println("");
+    Serial.print("OSC message ");
+    Serial.print(address);
+    Serial.print(" received ");
+    if(isFloat){
+      Serial.print("float ");
+    } else {
+      Serial.print("integer ");
+    }
+    Serial.print("value: ");
     Serial.println(inValue);
   #endif
-  // TODO convert float to int?
+
+  return inValue;
+}
+
+void apertureMotorOSChandler(OSCMessage &msg, int addrOffset) {
+  int inValue = receiveOSCvalue(msg);
+
   if (remote_connected){
     RGBEncoder[0].writeCounter((int32_t) inValue); //Reset of the CVAL register
   }
@@ -287,11 +317,7 @@ void apertureMotorOSChandler(OSCMessage &msg, int addrOffset) {
 }
 
 void focusMotorOSChandler(OSCMessage &msg, int addrOffset) {
-  int inValue = msg.getFloat(0);
-  #ifdef SERIAL_DEBUGING
-    Serial.print("focus osc received: ");
-    Serial.println(inValue);
-  #endif
+  int inValue = receiveOSCvalue(msg);
 
   if (remote_connected){
       RGBEncoder[1].writeCounter((int32_t) inValue); //Reset of the CVAL register
@@ -301,12 +327,7 @@ void focusMotorOSChandler(OSCMessage &msg, int addrOffset) {
 }
 
 void zoomMotorOSChandler(OSCMessage &msg, int addrOffset) {
-  // TODO check isadora sending int?
-  int inValue = msg.getFloat(0);
-  #ifdef SERIAL_DEBUGING
-    Serial.print("zoom osc received: ");
-    Serial.println(inValue);
-  #endif
+  int inValue = receiveOSCvalue(msg);
 
   if (remote_connected){
     RGBEncoder[2].writeCounter((int32_t) inValue); //Reset of the CVAL register
@@ -375,19 +396,12 @@ void zoomLedOSChandler(OSCMessage &msg, int addrOffset) {
 // ---------------------------- parameters handlers ----------------------------
 
 void setApertureLimitOSChandler(OSCMessage &msg, int addrOffset) {
-  // TODO check isadora sending int?
-  int inValue = msg.getFloat(0);
-  #ifdef SERIAL_DEBUGING
-    Serial.print("setApertureLimitOSChandler: ");
-    Serial.println(inValue);
-  #endif
+  int inValue = receiveOSCvalue(msg);
 
   #ifdef NEOPIXEL
     pixels.setPixelColor(0, pixels.Color(255, 0, 0));
     pixels.show();
   #endif
-
-
 
   lock_remote = false;
 }
@@ -403,12 +417,7 @@ void resetMotorsPositions(){
 }
 
 void resetOSChandler(OSCMessage &msg, int addrOffset) {
-  // TODO check isadora sending int?
-  int inValue = msg.getFloat(0);
-  #ifdef SERIAL_DEBUGING
-    Serial.print("resetOSChandler: ");
-    Serial.println(inValue);
-  #endif
+  int inValue = receiveOSCvalue(msg);
 
   #ifdef NEOPIXEL
     pixels.setPixelColor(0, pixels.Color(255, 0, 0));
@@ -421,9 +430,7 @@ void resetOSChandler(OSCMessage &msg, int addrOffset) {
 }
 
 void brightnessHandler(OSCMessage &msg, int addrOffset) {
-  // TODO check isadora sending int?
-  float inValue = msg.getFloat(0);
-
+  int inValue = receiveOSCvalue(msg);
   brightness = inValue;
 
   #ifdef SERIAL_DEBUGING
