@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 303
+#define FIRMWARE_VERSION 305
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -38,9 +38,9 @@
 #define SERIAL_SPEED 115200
 
 // encoders settings
-#define potFineStep 1
-#define potCoarseStep 10
-#define potMax 10000
+int potFineStep[] = { 1, 1, 1 };
+int potCoarseStep[] = {10 ,10, 10};
+int potMax[] = { 6144, 6144, 6144 };  // 6144 = 3 truns
 
 
 //------------------------------------------------------------------------------
@@ -215,7 +215,14 @@ void encoder_rotated(i2cEncoderLibV2* obj) {
     #endif
 
     obj->writeFadeRGB(3);
-    obj->writeRGBCode(rgb2hex(0, 255, 0, brightness));
+    if ( toggle[obj->id] ){
+        // coarse adjustemnt in blue
+        obj->writeRGBCode(rgb2hex(0, 0, 255, brightness));
+    } else {
+        // fine adjustment in green
+        obj->writeRGBCode(rgb2hex(0, 255, 0, brightness));
+    }
+
 
     moveMotorToPosition(motorID, position);
 }
@@ -223,14 +230,20 @@ void encoder_rotated(i2cEncoderLibV2* obj) {
 void encoder_click(i2cEncoderLibV2* obj) {
 
   obj->writeFadeRGB(3);
-  obj->writeRGBCode(rgb2hex(0, 0, 255, brightness));
+  if ( toggle[obj->id] ){
+      // coarse adjustemnt in blue
+      obj->writeRGBCode(rgb2hex(0, 255, 0, brightness));
+  } else {
+      // fine adjustment in green
+      obj->writeRGBCode(rgb2hex(0, 0, 255, brightness));
+  }
 
   int pushed = obj->id;
 
   if (toggle[pushed]) {
-    RGBEncoder[pushed].writeStep((int32_t) potFineStep);
+    RGBEncoder[pushed].writeStep((int32_t) potFineStep[obj->id]);
   } else {
-    RGBEncoder[pushed].writeStep((int32_t) potCoarseStep);
+    RGBEncoder[pushed].writeStep((int32_t) potCoarseStep[obj->id]);
   }
 
   #ifdef SERIAL_DEBUGING
@@ -437,6 +450,41 @@ void resetZoomPositionOSCHandler(OSCMessage &msg, int addrOffset) {
 
   lock_remote = false;
 }
+
+void setEncodersStepFineOSChandler(OSCMessage &msg, int addrOffset) {
+  // TODO check isadora sending int?
+  int f1 = msg.getFloat(0);
+  int f2 = msg.getFloat(1);
+  int f3 = msg.getFloat(2);
+
+  #ifdef SERIAL_DEBUGING
+    Serial.println("Encoder fine steps: " + String(f1) + " " + String(f2) + " " +  String(f3));
+  #endif
+
+  potFineStep[0] = f1;
+  potFineStep[1] = f2;
+  potFineStep[2] = f3;
+
+  lock_remote = false;
+}
+
+void setEncodersStepCoarseOSChandler(OSCMessage &msg, int addrOffset) {
+  // TODO check isadora sending int?
+  int c1 = msg.getFloat(0);
+  int c2 = msg.getFloat(1);
+  int c3 = msg.getFloat(2);
+
+  #ifdef SERIAL_DEBUGING
+    Serial.println("Encoder coarse steps :" + String(c1) + " " + String(c2) + " " +  String(c3));
+  #endif
+
+  potCoarseStep[0] = c1;
+  potCoarseStep[1] = c2;
+  potCoarseStep[2] = c3;
+
+  lock_remote = false;
+}
+
 // ------------------------------- other handlers ------------------------------
 
 
@@ -508,6 +556,9 @@ void receiveOSCsingle(){
       msgIn.route("/ledZoom", zoomLedOSChandler);
 
       msgIn.route("/brightness", brightnessHandler);
+
+      msgIn.route("/set/encoders/fine", setEncodersStepFineOSChandler);
+      msgIn.route("/set/encoders/coarse", setEncodersStepCoarseOSChandler);
 
       // msgIn.route("/limit/max/aperture", setApertureMaxLimitOSChandler);
       // msgIn.route("/limit/min/aperture", setApertureMinLimitOSChandler);
@@ -659,9 +710,9 @@ void setup() {
         | i2cEncoderLibV2::RMOD_X1
         | i2cEncoderLibV2::RGB_ENCODER);
       RGBEncoder[enc_cnt].writeCounter((int32_t) 0); //Reset of the CVAL register
-      RGBEncoder[enc_cnt].writeMax((int32_t) potMax); //Set the maximum threshold to 50
+      RGBEncoder[enc_cnt].writeMax((int32_t) potMax[enc_cnt]); //Set the maximum threshold to 50
       RGBEncoder[enc_cnt].writeMin((int32_t) 0); //Set the minimum threshold to 0
-      RGBEncoder[enc_cnt].writeStep((int32_t) potFineStep); //The step at every encoder click is 1
+      RGBEncoder[enc_cnt].writeStep((int32_t) potCoarseStep[enc_cnt]); //The step at every encoder click is 1
       RGBEncoder[enc_cnt].writeRGBCode(0);
       RGBEncoder[enc_cnt].writeFadeRGB(3); //Fade enabled with 3ms step
       RGBEncoder[enc_cnt].writeAntibouncingPeriod(25); //250ms of debouncing
@@ -789,9 +840,6 @@ void loop() {
       #endif
 
       sendOSCreport();
-
-      Serial.print("homeing: "); Serial.print(homeing[0]); Serial.print(homeing[1]); Serial.println(homeing[2]);
-      Serial.print("remote lock: "); Serial.println(lock_remote);
 
       #ifdef NEOPIXEL
         pixels.setPixelColor(0, pixels.Color(0, 0, 150));
