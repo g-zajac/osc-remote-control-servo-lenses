@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 305
+#define FIRMWARE_VERSION 307
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -40,8 +40,8 @@
 // encoders settings
 int potFineStep[] = { 1, 1, 1 };
 int potCoarseStep[] = {10 ,10, 10};
+int potMin[] = { 0, 0, 0};
 int potMax[] = { 6144, 6144, 6144 };  // 6144 = 3 truns
-
 
 //------------------------------------------------------------------------------
 #include <Arduino.h>
@@ -99,6 +99,7 @@ int HOMING_POSITIONS[] = { HOMEING_POSITION_APERTURE, HOMEING_POSITION_FOCUS, HO
 int button1value = 2048;
 int button2value = 2048;
 int button3value = 2048;
+
 //------------------------------ I2C encoders ----------------------------------
 // Connections:
 // - -> GND
@@ -117,7 +118,7 @@ uint8_t encoder_status, i;
 bool remote_connected = false;
 bool lock_remote = false;
 
-bool toggle[] = { 0, 0, 0 };
+bool toggle[] = { 1, 1, 1 };  // starting with coarse adjustment
 float brightness = 1.0;
 
 //---------------------------- MAC & IP list ----------------------------------
@@ -228,22 +229,23 @@ void encoder_rotated(i2cEncoderLibV2* obj) {
 }
 
 void encoder_click(i2cEncoderLibV2* obj) {
+  int pushed = obj->id;
+  toggle[pushed] = !toggle[pushed];
 
   obj->writeFadeRGB(3);
-  if ( toggle[obj->id] ){
+  if ( toggle[pushed] ){
       // coarse adjustemnt in blue
       obj->writeRGBCode(rgb2hex(0, 255, 0, brightness));
   } else {
       // fine adjustment in green
       obj->writeRGBCode(rgb2hex(0, 0, 255, brightness));
   }
-
-  int pushed = obj->id;
-
+  // update pot step (toggle = 1 -> coarse, 0 -> fine)
   if (toggle[pushed]) {
-    RGBEncoder[pushed].writeStep((int32_t) potFineStep[obj->id]);
+    RGBEncoder[pushed].writeStep((int32_t) potCoarseStep[pushed]);
   } else {
-    RGBEncoder[pushed].writeStep((int32_t) potCoarseStep[obj->id]);
+    RGBEncoder[pushed].writeStep((int32_t) potFineStep[pushed]);
+
   }
 
   #ifdef SERIAL_DEBUGING
@@ -255,7 +257,6 @@ void encoder_click(i2cEncoderLibV2* obj) {
     Serial.println(toggle[2]);
   #endif
 
-  toggle[pushed] = !toggle[pushed];
 }
 
 void encoder_thresholds(i2cEncoderLibV2* obj) {
@@ -284,7 +285,6 @@ int uptimeInSecs(){
 
 
 //------------------------------ Stepper handlers ------------------------------
-
 // osc receiver msg function
 int receiveOSCvalue(OSCMessage &msg){
 
@@ -452,35 +452,70 @@ void resetZoomPositionOSCHandler(OSCMessage &msg, int addrOffset) {
 }
 
 void setEncodersStepFineOSChandler(OSCMessage &msg, int addrOffset) {
-  // TODO check isadora sending int?
-  int f1 = msg.getFloat(0);
-  int f2 = msg.getFloat(1);
-  int f3 = msg.getFloat(2);
 
   #ifdef SERIAL_DEBUGING
-    Serial.println("Encoder fine steps: " + String(f1) + " " + String(f2) + " " +  String(f3));
+    Serial.println("Encoder fine steps: " + String(msg.getFloat(0)) + " " + String(msg.getFloat(1)) + " " +  String(msg.getFloat(2)));
   #endif
 
-  potFineStep[0] = f1;
-  potFineStep[1] = f2;
-  potFineStep[2] = f3;
+  for (int i=0; i<3; i++){
+    potFineStep[i] = msg.getFloat(i);
+    // update pot only if fine mode
+    if(!toggle[i]){
+      RGBEncoder[i].writeStep((int32_t) msg.getFloat(i));
+    }
+  }
 
   lock_remote = false;
 }
 
 void setEncodersStepCoarseOSChandler(OSCMessage &msg, int addrOffset) {
-  // TODO check isadora sending int?
-  int c1 = msg.getFloat(0);
-  int c2 = msg.getFloat(1);
-  int c3 = msg.getFloat(2);
 
   #ifdef SERIAL_DEBUGING
-    Serial.println("Encoder coarse steps :" + String(c1) + " " + String(c2) + " " +  String(c3));
+    Serial.println("Encoder coarse steps: " + String(msg.getFloat(0)) + " " + String(msg.getFloat(1)) + " " +  String(msg.getFloat(2)));
   #endif
 
-  potCoarseStep[0] = c1;
-  potCoarseStep[1] = c2;
-  potCoarseStep[2] = c3;
+  for (int i=0; i<3; i++){
+    potCoarseStep[i] = msg.getFloat(i);
+    // update pot only if coarse mode
+    if(toggle[i]){
+      RGBEncoder[i].writeStep((int32_t) msg.getFloat(i));
+    }
+  }
+
+  lock_remote = false;
+}
+
+void setEncodersMinOSChandler(OSCMessage &msg, int addrOffset) {
+  // TODO check isadora sending int?
+  int min1 = msg.getFloat(0);
+  int min2 = msg.getFloat(1);
+  int min3 = msg.getFloat(2);
+
+  #ifdef SERIAL_DEBUGING
+    Serial.println("Encoder coarse steps :" + String(min1) + " " + String(min2) + " " +  String(min3));
+  #endif
+
+  // RGBEncoder[enc_cnt].writeMax((int32_t) potMax[enc_cnt]); //Set the maximum threshold to
+  RGBEncoder[0].writeMin((int32_t) min1); //Set the minimum threshold to
+  RGBEncoder[1].writeMin((int32_t) min2); //Set the minimum threshold to
+  RGBEncoder[2].writeMin((int32_t) min3); //Set the minimum threshold to
+
+  lock_remote = false;
+}
+
+void setEncodersMaxOSChandler(OSCMessage &msg, int addrOffset) {
+  // TODO check isadora sending int?
+  int max1 = msg.getFloat(0);
+  int max2 = msg.getFloat(1);
+  int max3 = msg.getFloat(2);
+
+  #ifdef SERIAL_DEBUGING
+    Serial.println("Encoder coarse steps :" + String(max1) + " " + String(max2) + " " +  String(max3));
+  #endif
+
+  RGBEncoder[0].writeMax((int32_t) max1); //Set the maximum threshold to
+  RGBEncoder[1].writeMax((int32_t) max2); //Set the maximum threshold to
+  RGBEncoder[2].writeMax((int32_t) max3); //Set the maximum threshold to
 
   lock_remote = false;
 }
@@ -508,13 +543,10 @@ void resetOSChandler(OSCMessage &msg, int addrOffset) {
 }
 
 void brightnessHandler(OSCMessage &msg, int addrOffset) {
-  int inValue = receiveOSCvalue(msg);
-  brightness = inValue;
+  brightness = msg.getFloat(0);
 
   #ifdef SERIAL_DEBUGING
-    Serial.print("brightnessHandler received value: ");
-    Serial.println(inValue);
-    Serial.print("updated brightness: ");
+    Serial.print("received brightness value: ");
     Serial.println(brightness);
   #endif
 
@@ -559,6 +591,9 @@ void receiveOSCsingle(){
 
       msgIn.route("/set/encoders/fine", setEncodersStepFineOSChandler);
       msgIn.route("/set/encoders/coarse", setEncodersStepCoarseOSChandler);
+
+      msgIn.route("/set/encoders/min", setEncodersMinOSChandler);
+      msgIn.route("/set/encoders/max", setEncodersMaxOSChandler);
 
       // msgIn.route("/limit/max/aperture", setApertureMaxLimitOSChandler);
       // msgIn.route("/limit/min/aperture", setApertureMinLimitOSChandler);
@@ -710,8 +745,8 @@ void setup() {
         | i2cEncoderLibV2::RMOD_X1
         | i2cEncoderLibV2::RGB_ENCODER);
       RGBEncoder[enc_cnt].writeCounter((int32_t) 0); //Reset of the CVAL register
-      RGBEncoder[enc_cnt].writeMax((int32_t) potMax[enc_cnt]); //Set the maximum threshold to 50
-      RGBEncoder[enc_cnt].writeMin((int32_t) 0); //Set the minimum threshold to 0
+      RGBEncoder[enc_cnt].writeMax((int32_t) potMax[enc_cnt]); //Set the maximum threshold to
+      RGBEncoder[enc_cnt].writeMin((int32_t) potMin[enc_cnt]); //Set the minimum threshold to
       RGBEncoder[enc_cnt].writeStep((int32_t) potCoarseStep[enc_cnt]); //The step at every encoder click is 1
       RGBEncoder[enc_cnt].writeRGBCode(0);
       RGBEncoder[enc_cnt].writeFadeRGB(3); //Fade enabled with 3ms step
