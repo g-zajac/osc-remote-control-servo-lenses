@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 307
+#define FIRMWARE_VERSION 308
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -235,10 +235,10 @@ void encoder_click(i2cEncoderLibV2* obj) {
   obj->writeFadeRGB(3);
   if ( toggle[pushed] ){
       // coarse adjustemnt in blue
-      obj->writeRGBCode(rgb2hex(0, 255, 0, brightness));
+      obj->writeRGBCode(rgb2hex(0, 0, 255, brightness));
   } else {
       // fine adjustment in green
-      obj->writeRGBCode(rgb2hex(0, 0, 255, brightness));
+      obj->writeRGBCode(rgb2hex(0, 255, 0, brightness));
   }
   // update pot step (toggle = 1 -> coarse, 0 -> fine)
   if (toggle[pushed]) {
