@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 308
+#define FIRMWARE_VERSION 309
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -161,7 +161,7 @@ const unsigned int destPort = 1234;          // remote port to receive OSC
 const unsigned int localPort = 4321;        // local port to listen for OSC packets
 
 unsigned long previousMillis = 0;
-const long interval = 100;
+long interval = 100;
 long uptime = 0;
 
 char osc_prefix[16];                  // device OSC prefix message, i.e /camera1
@@ -564,6 +564,15 @@ void brightnessHandler(OSCMessage &msg, int addrOffset) {
 
   lock_remote = false;
 }
+
+void setIntervalOSChandler(OSCMessage &msg, int addrOffset) {
+  int inValue = receiveOSCvalue(msg);
+  // NOTE hard limit for max frequency in ms
+  if (inValue < 50) {interval = 50;}
+  else {interval = inValue;}
+
+  lock_remote = false;
+}
 //------------------------------------------------------------------------------
 
 void receiveOSCsingle(){
@@ -607,11 +616,7 @@ void receiveOSCsingle(){
       msgIn.route("/set/encoders/min", setEncodersMinOSChandler);
       msgIn.route("/set/encoders/max", setEncodersMaxOSChandler);
 
-      // msgIn.route("/limit/max/aperture", setApertureMaxLimitOSChandler);
-      // msgIn.route("/limit/min/aperture", setApertureMinLimitOSChandler);
-
-      // msgIn.route("/limit/focus", setFocusLimitOSChandler);
-      // msgIn.route("/limit/zoom", setZoomLimitOSChandler);
+      msgIn.route("/set/interval", setIntervalOSChandler);
 
       #ifdef NEOPIXEL
         pixels.setPixelColor(0, pixels.Color(255, 0, 150));
