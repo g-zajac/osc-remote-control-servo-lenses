@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 309
+#define FIRMWARE_VERSION 310
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -43,7 +43,9 @@
 #include <Ethernet.h>
 #include <EthernetBonjour.h>
 
+// TODO remove redundant
 #include <OSCMessage.h>
+#include <OSCBundle.h>
 
 #include <Wire.h>
 #include <i2cEncoderLibV2.h>
@@ -290,7 +292,7 @@ void encoder_thresholds(i2cEncoderLibV2* obj) {
 void encoder_fade(i2cEncoderLibV2* obj) {
   obj->writeRGBCode(0x000000);
 }
-
+//TODO convert to human friendly texh HH:MM:SS?
 int uptimeInSecs(){
   return (int)(millis()/1000);
 }
@@ -332,7 +334,7 @@ int receiveOSCvalue(OSCMessage &msg){
 }
 
 
-void apertureMotorOSChandler(OSCMessage &msg, int addrOffset) {
+void apertureMoveToOSChandler(OSCMessage &msg, int addrOffset) {
   int inValue = receiveOSCvalue(msg);
 
   if (remote_connected){
@@ -342,7 +344,7 @@ void apertureMotorOSChandler(OSCMessage &msg, int addrOffset) {
   lock_remote = false;
 }
 
-void focusMotorOSChandler(OSCMessage &msg, int addrOffset) {
+void focusMoveToOSChandler(OSCMessage &msg, int addrOffset) {
   int inValue = receiveOSCvalue(msg);
 
   if (remote_connected){
@@ -352,7 +354,7 @@ void focusMotorOSChandler(OSCMessage &msg, int addrOffset) {
   lock_remote = false;
 }
 
-void zoomMotorOSChandler(OSCMessage &msg, int addrOffset) {
+void zoomMoveToOSChandler(OSCMessage &msg, int addrOffset) {
   int inValue = receiveOSCvalue(msg);
 
   if (remote_connected){
@@ -597,9 +599,9 @@ void receiveOSCsingle(){
         msgIn.route("/resetPosition/focus", resetFocusPositionOSCHandler);
         msgIn.route("/resetPosition/zoom", resetZoomPositionOSCHandler);
 
-        msgIn.route("/aperture", apertureMotorOSChandler);
-        msgIn.route("/focus", focusMotorOSChandler);
-        msgIn.route("/zoom", zoomMotorOSChandler);
+        msgIn.route("/aperture", apertureMoveToOSChandler);
+        msgIn.route("/focus", focusMoveToOSChandler);
+        msgIn.route("/zoom", zoomMoveToOSChandler);
 
         msgIn.route("/reset", resetOSChandler);
       }
@@ -661,6 +663,36 @@ void sendOSCreport(){
   sendOSCmessage("/zoom", -stepper[2]->currentPosition());
   sendOSCmessage("/uptime", uptimeInSecs());
   sendOSCmessage("/ver", FIRMWARE_VERSION);
+  #ifdef SERIAL_DEBUGING
+    Serial.print(" *");
+  #endif
+}
+
+void sendOSCbundleReport(){
+  //declare the bundle
+  OSCBundle bndl;
+
+  //BOSCBundle's add' returns the OSCMessage so the message's 'add' can be composed together
+  bndl.add("/positions").add(-stepper[0]->currentPosition()).add(-stepper[1]->currentPosition()).add(-stepper[2]->currentPosition());
+  bndl.add("/encoders/fine").add(potFineStep[0]).add(potFineStep[1]).add(potFineStep[2]);
+  bndl.add("/encoders/coarse").add(potCoarseStep[0]).add(potCoarseStep[1]).add(potCoarseStep[2]);
+  // bndl.add("/encoders/min").add();
+  // bndl.add("/encoders/max").add();
+  bndl.add("/interval").add(interval);
+  bndl.add("/uptime").add(uptimeInSecs());
+  bndl.add("/ver").add(FIRMWARE_VERSION);
+
+  // bndl.add("/aperture").add(-stepper[0]->currentPosition());
+  // bndl.add("/focus").add(-stepper[1]->currentPosition());
+  // bndl.add("/zoom").add(-stepper[2]->currentPosition());
+  // bndl.add("/digital/5").add((digitalRead(5)==HIGH)?"HIGH":"LOW");
+  // bndl.add("/mouse/step").add((int32_t)analogRead(0)).add((int32_t)analogRead(1));
+  // bndl.add("/units").add("pixels");
+
+  Udp.beginPacket(targetIP, destPort);
+  bndl.send(Udp); // send the bytes to the SLIP stream
+  Udp.endPacket(); // mark the end of the OSC Packet
+  bndl.empty(); // empty the bundle to free room for a new one
   #ifdef SERIAL_DEBUGING
     Serial.print(" *");
   #endif
@@ -891,7 +923,8 @@ void loop() {
         pixels.show();
       #endif
 
-      sendOSCreport();
+      // sendOSCreport();
+      sendOSCbundleReport();
 
       #ifdef NEOPIXEL
         pixels.setPixelColor(0, pixels.Color(0, 0, 150));
@@ -918,7 +951,7 @@ void loop() {
   for (int i=0; i<3; i++){
     stepper[i]->run();
 
-    if(homeing[i] && (stepper[i]->currentPosition() == HOMING_POSITIONS[i]) ){
+    if(homeing[i] && (-stepper[i]->currentPosition() == HOMING_POSITIONS[i]) ){
         stepper[i]->setCurrentPosition(0);
         RGBEncoder[i].writeCounter((int32_t) 0); //Reset of the CVAL register
         #ifdef SERIAL_DEBUGING
