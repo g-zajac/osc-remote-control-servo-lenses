@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 316
+#define FIRMWARE_VERSION 317
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -124,7 +124,8 @@ i2cEncoderLibV2 RGBEncoder[ENCODER_N] = { i2cEncoderLibV2(0x02),
 uint8_t encoder_status, i;
 
 bool remote_connected = false;
-bool lock_remote = false;
+bool lock_remote_on_osc = false;
+bool lock_remote_master = false;
 
 bool toggle[] = { 1, 1, 1 };  // starting with coarse adjustment
 float brightness = 1.0;
@@ -345,7 +346,7 @@ void apertureMoveToOSChandler(OSCMessage &msg, int addrOffset) {
     RGBEncoder[0].writeCounter((int32_t) inValue); //Reset of the CVAL register
   }
   moveMotorToPosition(0, inValue);
-  lock_remote = false;
+  lock_remote_on_osc = false;
 }
 
 void focusMoveToOSChandler(OSCMessage &msg, int addrOffset) {
@@ -355,7 +356,7 @@ void focusMoveToOSChandler(OSCMessage &msg, int addrOffset) {
       RGBEncoder[1].writeCounter((int32_t) inValue); //Reset of the CVAL register
   }
   moveMotorToPosition(1, inValue);
-  lock_remote = false;
+  lock_remote_on_osc = false;
 }
 
 void zoomMoveToOSChandler(OSCMessage &msg, int addrOffset) {
@@ -365,7 +366,7 @@ void zoomMoveToOSChandler(OSCMessage &msg, int addrOffset) {
     RGBEncoder[2].writeCounter((int32_t) inValue); //Reset of the CVAL register
   }
   moveMotorToPosition(2, inValue);
-  lock_remote = false;
+  lock_remote_on_osc = false;
 }
 
 //------------------------------- LED handlers ---------------------------------
@@ -378,21 +379,21 @@ void apertureLedOSChandler(OSCMessage &msg, int addrOffset) {
   long rgb = r_g_b2rgb(msg.getInt(0), msg.getInt(1), msg.getInt(2));
   RGBEncoder[0].writeFadeRGB(0);
   RGBEncoder[0].writeRGBCode(rgb);
-  lock_remote = false;
+  lock_remote_on_osc = false;
 }
 
 void focusLedOSChandler(OSCMessage &msg, int addrOffset) {
   long rgb = r_g_b2rgb(msg.getInt(0), msg.getInt(1), msg.getInt(2));
   RGBEncoder[1].writeFadeRGB(0);
   RGBEncoder[1].writeRGBCode(rgb);
-  lock_remote = false;
+  lock_remote_on_osc = false;
 }
 
 void zoomLedOSChandler(OSCMessage &msg, int addrOffset) {
   long rgb = r_g_b2rgb(msg.getInt(0), msg.getInt(1), msg.getInt(2));
   RGBEncoder[2].writeFadeRGB(0);
   RGBEncoder[2].writeRGBCode(rgb);
-  lock_remote = false;
+  lock_remote_on_osc = false;
 }
 
 // ---------------------------- parameters handlers ----------------------------
@@ -408,7 +409,7 @@ void resetAperturePositionOSCHandler(OSCMessage &msg, int addrOffset) {
 
   HOMING_POSITIONS[0] = inValue;
 
-  lock_remote = false;
+  lock_remote_on_osc = false;
 }
 
 void resetFocusPositionOSCHandler(OSCMessage &msg, int addrOffset) {
@@ -422,7 +423,7 @@ void resetFocusPositionOSCHandler(OSCMessage &msg, int addrOffset) {
 
   HOMING_POSITIONS[1] = inValue;
 
-  lock_remote = false;
+  lock_remote_on_osc = false;
 }
 
 void resetZoomPositionOSCHandler(OSCMessage &msg, int addrOffset) {
@@ -436,7 +437,7 @@ void resetZoomPositionOSCHandler(OSCMessage &msg, int addrOffset) {
 
   HOMING_POSITIONS[2] = inValue;
 
-  lock_remote = false;
+  lock_remote_on_osc = false;
 }
 
 void setEncodersStepFineOSChandler(OSCMessage &msg, int addrOffset) {
@@ -453,7 +454,7 @@ void setEncodersStepFineOSChandler(OSCMessage &msg, int addrOffset) {
     Serial.println("Encoder fine steps: " + String(potFineStep[0]) + " " + String(potFineStep[1]) + " " +  String(potFineStep[2]));
   #endif
 
-  lock_remote = false;
+  lock_remote_on_osc = false;
 }
 
 void setEncodersStepCoarseOSChandler(OSCMessage &msg, int addrOffset) {
@@ -470,7 +471,7 @@ void setEncodersStepCoarseOSChandler(OSCMessage &msg, int addrOffset) {
     Serial.println("Encoder coarse steps: " + String(potCoarseStep[0]) + " " + String(potCoarseStep[1]) + " " +  String(potCoarseStep[2]));
   #endif
 
-  lock_remote = false;
+  lock_remote_on_osc = false;
 }
 
 void setEncodersMinOSChandler(OSCMessage &msg, int addrOffset) {
@@ -484,7 +485,7 @@ void setEncodersMinOSChandler(OSCMessage &msg, int addrOffset) {
     Serial.println("Encoder min steps :" + String(potMin[0]) + " " + String(potMin[1]) + " " +  String(potMin[2]));
   #endif
 
-  lock_remote = false;
+  lock_remote_on_osc = false;
 }
 
 void setEncodersMaxOSChandler(OSCMessage &msg, int addrOffset) {
@@ -498,7 +499,7 @@ void setEncodersMaxOSChandler(OSCMessage &msg, int addrOffset) {
     Serial.println("Encoder max steps :" + String(potMax[0]) + " " + String(potMax[1]) + " " +  String(potMax[2]));
   #endif
 
-  lock_remote = false;
+  lock_remote_on_osc = false;
 }
 
 // ------------------------------- other handlers ------------------------------
@@ -531,7 +532,15 @@ void brightnessHandler(OSCMessage &msg, int addrOffset) {
     Serial.println(brightness);
   #endif
 
-  lock_remote = false;
+  lock_remote_on_osc = false;
+}
+
+void setEncoderLockOSChandler(OSCMessage &msg, int addrOffset) {
+  int inValue = receiveOSCvalue(msg);
+  if (inValue == 0){ lock_remote_master = false; }
+  else { lock_remote_master = true; }
+
+  lock_remote_on_osc = false;
 }
 
 void setIntervalOSChandler(OSCMessage &msg, int addrOffset) {
@@ -540,7 +549,7 @@ void setIntervalOSChandler(OSCMessage &msg, int addrOffset) {
   if (inValue < 50) {interval = 50;}
   else {interval = inValue;}
 
-  lock_remote = false;
+  lock_remote_on_osc = false;
 }
 //------------------------------------------------------------------------------
 
@@ -558,7 +567,7 @@ void receiveOSCsingle(){
     // route messages
     if(!msgIn.hasError()) {
 
-      lock_remote = true;
+      lock_remote_on_osc = true;
 
       // block osc messages when at least on motor is homeing
       if(!homeing[0] && !homeing[1] && !homeing[2]){
@@ -578,6 +587,7 @@ void receiveOSCsingle(){
       msgIn.route("/ledZoom", zoomLedOSChandler);
 
       msgIn.route("/brightness", brightnessHandler);
+      msgIn.route("/set/encoders/lock", setEncoderLockOSChandler);
 
       msgIn.route("/set/encoders/fine", setEncodersStepFineOSChandler);
       msgIn.route("/set/encoders/coarse", setEncodersStepCoarseOSChandler);
@@ -971,7 +981,7 @@ void loop() {
   // check pots
   uint8_t enc_cnt;
 
-  if (remote_connected && !lock_remote){
+  if ( remote_connected && !lock_remote_on_osc && !lock_remote_master ){
     if (digitalRead(INT_PIN) == LOW) {
       //Interrupt from the encoders, start to scan the encoder matrix
       for (enc_cnt = 0; enc_cnt < ENCODER_N; enc_cnt++) {
@@ -988,7 +998,9 @@ void loop() {
 
     if(homeing[i] && (-stepper[i]->currentPosition() == HOMING_POSITIONS[i]) ){
         stepper[i]->setCurrentPosition(0);
-        RGBEncoder[i].writeCounter((int32_t) 0); //Reset of the CVAL register
+        if(remote_connected){
+          RGBEncoder[i].writeCounter((int32_t) 0); //Reset of the CVAL register
+        }
         #ifdef SERIAL_DEBUGING
           Serial.print("stepper "); Serial.print(i); Serial.println(" is at home position");
         #endif
@@ -998,7 +1010,7 @@ void loop() {
         // if all restarted then unlock remote
         if ( !homeing[0] && !homeing[1] && !homeing[2] ){
           Serial.println("All motors reset to 0");
-          lock_remote = false;
+          lock_remote_on_osc = false;
         }
     }
 
