@@ -989,13 +989,13 @@ void loop() {
 
            client.println("<ul>");
              client.println("<li>");
-             client.print("Aperture position: "); client.println(stepper[0]->currentPosition());
+             client.print("Aperture position: "); client.println(-stepper[0]->currentPosition());
              client.println("</li>");
              client.println("<li>");
-             client.print("Focus position: "); client.println(stepper[1]->currentPosition());
+             client.print("Focus position: "); client.println(-stepper[1]->currentPosition());
              client.println("</li>");
              client.println("<li>");
-             client.print("Zoom position: "); client.println(stepper[2]->currentPosition());
+             client.print("Zoom position: "); client.println(-stepper[2]->currentPosition());
              client.println("</li>");
            client.println("</ul>");
 
