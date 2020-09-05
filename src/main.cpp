@@ -149,7 +149,7 @@ const unsigned int destPort = 1234;          // remote port to receive OSC
 const unsigned int localPort = 4321;        // local port to listen for OSC packets
 
 unsigned long previousMillis = 0;
-const long interval = 1000;
+const long interval = 100;
 long uptime = 0;
 
 char osc_prefix[16];                  // device OSC prefix message, i.e /camera1
@@ -171,7 +171,7 @@ void moveMotorToPosition(uint8_t motor, int position){
         Serial.print("moving motor "); Serial.print(motor); Serial.print(" to position "); Serial.println(position);
       #endif
 
-      stepper[motor]->moveTo(position);
+      stepper[motor]->moveTo(-position);
 }
 
 int rgb2hex(int r, int g, int b, float br){
@@ -639,9 +639,9 @@ void sendOSCreport(){
   //   Serial.print("Sending OSC raport ");
   // #endif
   // TODO fix sending -256 values when remote disconnected
-  sendOSCmessage("/aperture", stepper[0]->currentPosition());
-  sendOSCmessage("/focus", stepper[1]->currentPosition());
-  sendOSCmessage("/zoom", stepper[2]->currentPosition());
+  sendOSCmessage("/aperture", -stepper[0]->currentPosition());
+  sendOSCmessage("/focus", -stepper[1]->currentPosition());
+  sendOSCmessage("/zoom", -stepper[2]->currentPosition());
   sendOSCmessage("/uptime", uptimeInSecs());
   sendOSCmessage("/ver", FIRMWARE_VERSION);
   #ifdef SERIAL_DEBUGING
