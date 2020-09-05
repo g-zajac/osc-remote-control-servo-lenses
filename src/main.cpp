@@ -672,15 +672,42 @@ void sendOSCbundleReport(){
   //declare the bundle
   OSCBundle bndl;
 
-  //BOSCBundle's add' returns the OSCMessage so the message's 'add' can be composed together
-  bndl.add("/positions").add(-stepper[0]->currentPosition()).add(-stepper[1]->currentPosition()).add(-stepper[2]->currentPosition());
-  bndl.add("/encoders/fine").add(potFineStep[0]).add(potFineStep[1]).add(potFineStep[2]);
-  bndl.add("/encoders/coarse").add(potCoarseStep[0]).add(potCoarseStep[1]).add(potCoarseStep[2]);
+  // char message_osc_header[32];
+  // message_osc_header[0] = {0};
+  // strcat(message_osc_header, osc_prefix);
+  // strcat(message_osc_header, name);
+
+  char message_osc_header_msg[32];
+  message_osc_header_msg[0] = {0};
+  strcat(message_osc_header_msg, osc_prefix);
+  strcat(message_osc_header_msg, "/positions");
+  bndl.add(message_osc_header_msg).add(-stepper[0]->currentPosition()).add(-stepper[1]->currentPosition()).add(-stepper[2]->currentPosition());
+
+  message_osc_header_msg[0] = {0};
+  strcat(message_osc_header_msg, osc_prefix);
+  strcat(message_osc_header_msg, "/encoders/fine");
+  bndl.add(message_osc_header_msg).add(potFineStep[0]).add(potFineStep[1]).add(potFineStep[2]);
+
+  message_osc_header_msg[0] = {0};
+  strcat(message_osc_header_msg, osc_prefix);
+  strcat(message_osc_header_msg, "/encoders/coarse");
+  bndl.add(message_osc_header_msg).add(potCoarseStep[0]).add(potCoarseStep[1]).add(potCoarseStep[2]);
   // bndl.add("/encoders/min").add();
   // bndl.add("/encoders/max").add();
-  bndl.add("/interval").add(interval);
-  bndl.add("/uptime").add(uptimeInSecs());
-  bndl.add("/ver").add(FIRMWARE_VERSION);
+  message_osc_header_msg[0] = {0};
+  strcat(message_osc_header_msg, osc_prefix);
+  strcat(message_osc_header_msg, "/interval");
+  bndl.add(message_osc_header_msg).add(interval);
+
+  message_osc_header_msg[0] = {0};
+  strcat(message_osc_header_msg, osc_prefix);
+  strcat(message_osc_header_msg, "/uptime");
+  bndl.add(message_osc_header_msg).add(uptimeInSecs());
+
+  message_osc_header_msg[0] = {0};
+  strcat(message_osc_header_msg, osc_prefix);
+  strcat(message_osc_header_msg, "/ver");
+  bndl.add(message_osc_header_msg).add(FIRMWARE_VERSION);
 
   // bndl.add("/aperture").add(-stepper[0]->currentPosition());
   // bndl.add("/focus").add(-stepper[1]->currentPosition());
