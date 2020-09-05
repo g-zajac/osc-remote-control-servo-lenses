@@ -934,6 +934,8 @@ void setup() {
 void loop() {
   isLANconnected = checkEthernetConnection();
 
+  remote_connected = !digitalRead(POT_CHECK);
+
   if (isLANconnected){
     EthernetBonjour.run();
     receiveOSCsingle();
