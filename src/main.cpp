@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 315
+#define FIRMWARE_VERSION 316
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -167,7 +167,7 @@ const unsigned int destPort = 1234;          // remote port to receive OSC
 const unsigned int localPort = 4321;        // local port to listen for OSC packets
 
 unsigned long previousMillis = 0;
-long interval = 100;
+long interval = 200;
 long uptime = 0;
 
 char osc_prefix[16];                  // device OSC prefix message, i.e /camera1
@@ -230,7 +230,7 @@ void encoder_rotated(i2cEncoderLibV2* obj) {
       Serial.print(motorID);
       Serial.print(": ");
       Serial.println(position);
-      Serial.print("global brightness: "); Serial.println(brightness);
+      // Serial.print("global brightness: "); Serial.println(brightness);
     #endif
 
     obj->writeFadeRGB(3);
@@ -369,57 +369,27 @@ void zoomMoveToOSChandler(OSCMessage &msg, int addrOffset) {
 }
 
 //------------------------------- LED handlers ---------------------------------
+// convert single r,g,b values into one hex value
+long r_g_b2rgb(int r, int g, int b){
+  return ((long)r << 16) | ((long)g << 8 ) | (long)b;
+}
+
 void apertureLedOSChandler(OSCMessage &msg, int addrOffset) {
-  // TODO check isadora sending int?
-  int r = msg.getInt(0);
-  int g = msg.getInt(1);
-  int b = msg.getInt(2);
-
-  long rgb = 0;
-  rgb = ((long)r << 16) | ((long)g << 8 ) | (long)b;
-
+  long rgb = r_g_b2rgb(msg.getInt(0), msg.getInt(1), msg.getInt(2));
   RGBEncoder[0].writeFadeRGB(0);
   RGBEncoder[0].writeRGBCode(rgb);
   lock_remote = false;
 }
 
 void focusLedOSChandler(OSCMessage &msg, int addrOffset) {
-  // TODO check isadora sending int?
-  int r = msg.getInt(0);
-  int g = msg.getInt(1);
-  int b = msg.getInt(2);
-
-  // TODO to DRY, replace rgb conversion with function
-  long rgb = 0;
-  rgb = ((long)r << 16) | ((long)g << 8 ) | (long)b;
-
-
-  #ifdef SERIAL_DEBUGING
-    Serial.println("R:" + String(r) + " G:" + String(g) + " B:" + String(b));
-    Serial.print("focus rgb: "); Serial.print(rgb);
-    Serial.println(" Hex: " + String(rgb, HEX));
-  #endif
-
+  long rgb = r_g_b2rgb(msg.getInt(0), msg.getInt(1), msg.getInt(2));
   RGBEncoder[1].writeFadeRGB(0);
   RGBEncoder[1].writeRGBCode(rgb);
   lock_remote = false;
 }
 
 void zoomLedOSChandler(OSCMessage &msg, int addrOffset) {
-  // TODO check isadora sending int?
-  int r = msg.getInt(0);
-  int g = msg.getInt(1);
-  int b = msg.getInt(2);
-
-  long rgb = 0;
-  rgb = ((long)r << 16) | ((long)g << 8 ) | (long)b;
-
-  #ifdef SERIAL_DEBUGING
-    Serial.println("R:" + String(r) + " G:" + String(g) + " B:" + String(b));
-    Serial.print("zoom rgb: "); Serial.print(rgb);
-    Serial.println("  Hex: " + String(rgb, HEX));
-  #endif
-
+  long rgb = r_g_b2rgb(msg.getInt(0), msg.getInt(1), msg.getInt(2));
   RGBEncoder[2].writeFadeRGB(0);
   RGBEncoder[2].writeRGBCode(rgb);
   lock_remote = false;
@@ -471,10 +441,6 @@ void resetZoomPositionOSCHandler(OSCMessage &msg, int addrOffset) {
 
 void setEncodersStepFineOSChandler(OSCMessage &msg, int addrOffset) {
 
-  #ifdef SERIAL_DEBUGING
-    Serial.println("Encoder fine steps: " + String(msg.getFloat(0)) + " " + String(msg.getFloat(1)) + " " +  String(msg.getFloat(2)));
-  #endif
-
   for (int i=0; i<3; i++){
     potFineStep[i] = msg.getFloat(i);
     // update pot only if fine mode
@@ -483,14 +449,14 @@ void setEncodersStepFineOSChandler(OSCMessage &msg, int addrOffset) {
     }
   }
 
+  #ifdef SERIAL_DEBUGING
+    Serial.println("Encoder fine steps: " + String(potFineStep[0]) + " " + String(potFineStep[1]) + " " +  String(potFineStep[2]));
+  #endif
+
   lock_remote = false;
 }
 
 void setEncodersStepCoarseOSChandler(OSCMessage &msg, int addrOffset) {
-
-  #ifdef SERIAL_DEBUGING
-    Serial.println("Encoder coarse steps: " + String(msg.getFloat(0)) + " " + String(msg.getFloat(1)) + " " +  String(msg.getFloat(2)));
-  #endif
 
   for (int i=0; i<3; i++){
     potCoarseStep[i] = msg.getFloat(i);
@@ -499,6 +465,10 @@ void setEncodersStepCoarseOSChandler(OSCMessage &msg, int addrOffset) {
       RGBEncoder[i].writeStep((int32_t) msg.getFloat(i));
     }
   }
+
+  #ifdef SERIAL_DEBUGING
+    Serial.println("Encoder coarse steps: " + String(potCoarseStep[0]) + " " + String(potCoarseStep[1]) + " " +  String(potCoarseStep[2]));
+  #endif
 
   lock_remote = false;
 }
@@ -988,8 +958,8 @@ void loop() {
         pixels.show();
       #endif
 
-      // sendOSCreport();
-      sendOSCbundleReport();
+      sendOSCreport();
+      // sendOSCbundleReport();
 
       #ifdef NEOPIXEL
         pixels.setPixelColor(0, pixels.Color(0, 0, 150));
