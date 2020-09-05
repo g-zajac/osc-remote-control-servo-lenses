@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 310
+#define FIRMWARE_VERSION 315
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -49,6 +49,7 @@
 
 #include <Wire.h>
 #include <i2cEncoderLibV2.h>
+#include <Bounce2.h>
 
 #include <AccelStepper.h>
 
@@ -135,6 +136,9 @@ int potCoarseStep[] = {10 ,10, 10};
 int potMin[] = { 0, 0, 0};
 int potMax[] = { 3400, 1700, 1580 };  // 6144 = 3 truns
 
+Bounce potCheck = Bounce(); // Instantiate a Bounce object
+
+
 //---------------------------- MAC & IP list ----------------------------------
 // id stored in EEPROM, id points on array index and
 // assign MAC and IP for device, they mus be unique within the netowrk
@@ -195,12 +199,12 @@ int rgb2hex(int r, int g, int b, float br){
 
   int color = ((long)r << 16) | ((long)g << 8 ) | (long)b;
 
-  #ifdef SERIAL_DEBUGING
-    Serial.println("COlour conversion function");
-    Serial.print("R:" + String(r) + " G:" + String(g) + " B:" + String(b));
-    Serial.print(" BR: "); Serial.println(br);
-    Serial.print(" color: "); Serial.println(color, HEX);
-  #endif
+  // #ifdef SERIAL_DEBUGING
+  //   Serial.println("Colour conversion function");
+  //   Serial.print("R:" + String(r) + " G:" + String(g) + " B:" + String(b));
+  //   Serial.print(" BR: "); Serial.println(br);
+  //   Serial.print(" color: "); Serial.println(color, HEX);
+  // #endif
 
   return color;
 }
@@ -500,36 +504,29 @@ void setEncodersStepCoarseOSChandler(OSCMessage &msg, int addrOffset) {
 }
 
 void setEncodersMinOSChandler(OSCMessage &msg, int addrOffset) {
-  // TODO check isadora sending int?
-  int min1 = msg.getFloat(0);
-  int min2 = msg.getFloat(1);
-  int min3 = msg.getFloat(2);
+
+  for (int i=0; i<3; i++){
+    potMin[i] = (int) msg.getFloat(i);
+    RGBEncoder[i].writeMin((int32_t) potMin[i]); //Set the minimum threshold to
+  }
 
   #ifdef SERIAL_DEBUGING
-    Serial.println("Encoder coarse steps :" + String(min1) + " " + String(min2) + " " +  String(min3));
+    Serial.println("Encoder min steps :" + String(potMin[0]) + " " + String(potMin[1]) + " " +  String(potMin[2]));
   #endif
-
-  // RGBEncoder[enc_cnt].writeMax((int32_t) potMax[enc_cnt]); //Set the maximum threshold to
-  RGBEncoder[0].writeMin((int32_t) min1); //Set the minimum threshold to
-  RGBEncoder[1].writeMin((int32_t) min2); //Set the minimum threshold to
-  RGBEncoder[2].writeMin((int32_t) min3); //Set the minimum threshold to
 
   lock_remote = false;
 }
 
 void setEncodersMaxOSChandler(OSCMessage &msg, int addrOffset) {
-  // TODO check isadora sending int?
-  int max1 = msg.getFloat(0);
-  int max2 = msg.getFloat(1);
-  int max3 = msg.getFloat(2);
+
+  for (int i=0; i<3; i++){
+    potMax[i] = (int) msg.getFloat(i);
+    RGBEncoder[i].writeMax((int32_t) potMax[i]); //Set the maximum threshold to
+  }
 
   #ifdef SERIAL_DEBUGING
-    Serial.println("Encoder coarse steps :" + String(max1) + " " + String(max2) + " " +  String(max3));
+    Serial.println("Encoder max steps :" + String(potMax[0]) + " " + String(potMax[1]) + " " +  String(potMax[2]));
   #endif
-
-  RGBEncoder[0].writeMax((int32_t) max1); //Set the maximum threshold to
-  RGBEncoder[1].writeMax((int32_t) max2); //Set the maximum threshold to
-  RGBEncoder[2].writeMax((int32_t) max3); //Set the maximum threshold to
 
   lock_remote = false;
 }
@@ -765,48 +762,16 @@ bool checkEthernetConnection(){
   }
 }
 
-//******************************************************************************
-
-void setup() {
-  // neopixel
-  #ifdef NEOPIXEL
-    pixels.begin();
-    pixels.setBrightness(20);
-    pixels.clear();
-    pixels.show();
-
-    pixels.setPixelColor(0, pixels.Color(150, 150, 0));
-    pixels.show();
-  #endif
-
-  #ifdef SERIAL_DEBUGING
-    Serial.begin(SERIAL_SPEED);
-
-    // add delay when serial connected to catch first logs
-    if (!Serial){ delay(3000); };
-  #endif
-
-  #ifdef SERIAL_DEBUGING
-    Serial.print("\r\nFirmware Ver: "); Serial.print(FIRMWARE_VERSION);
-    Serial.println(" written by Grzegorz Zajac");
-    Serial.println("Compiled: " __DATE__ ", " __TIME__ ", " __VERSION__);
-    Serial.print("Device ID "); Serial.println(device_id);
-    Serial.println();
-  #endif
-
-  // Check if encoders are connected, only on startup, not hotpluging yet
-  pinMode(POT_CHECK, INPUT_PULLUP); // LOW when remote is connected
-  remote_connected = !digitalRead(POT_CHECK);
-
-//-------------------------- Initializing encoders -----------------------------
+//*************************** encoders hot plug  *******************************
+void initiateEncoders(){
   #ifdef SERIAL_DEBUGING
     Serial.println("initializing encoders");
   #endif
 
-  uint8_t enc_cnt;
-  pinMode(INT_PIN, INPUT);
+  delay(200);
 
-  if (remote_connected){
+  uint8_t enc_cnt;
+
     Wire.begin();
     // Reset of all the encoder
     for (enc_cnt = 0; enc_cnt < ENCODER_N; enc_cnt++) {
@@ -839,8 +804,71 @@ void setup() {
       RGBEncoder[enc_cnt].autoconfigInterrupt();
       RGBEncoder[enc_cnt].id = enc_cnt;
     }
+}
+
+void remoteDisconnected(){
+  #ifdef SERIAL_DEBUGING
+    Serial.println("RISING triggered! - renmote disconnected");
+  #endif
+  remote_connected = false;
+  Wire.endTransmission();
+}
+
+void remoteConnected(){
+  #ifdef SERIAL_DEBUGING
+    Serial.println("FALLING triggered! - renmote connected");
+  #endif
+  initiateEncoders();
+
+  // update to current positons
+  for (int i=0; i< 3; i++){
+    RGBEncoder[i].writeCounter((int32_t) -stepper[i]->currentPosition());
   }
 
+  remote_connected = true;
+}
+
+
+//******************************************************************************
+
+void setup() {
+  // neopixel
+  #ifdef NEOPIXEL
+    pixels.begin();
+    pixels.setBrightness(20);
+    pixels.clear();
+    pixels.show();
+
+    pixels.setPixelColor(0, pixels.Color(150, 150, 0));
+    pixels.show();
+  #endif
+
+  #ifdef SERIAL_DEBUGING
+    Serial.begin(SERIAL_SPEED);
+
+    // add delay when serial connected to catch first logs
+    if (!Serial){ delay(3000); };
+  #endif
+
+  #ifdef SERIAL_DEBUGING
+    Serial.print("\r\nFirmware Ver: "); Serial.print(FIRMWARE_VERSION);
+    Serial.println(" written by Grzegorz Zajac");
+    Serial.println("Compiled: " __DATE__ ", " __TIME__ ", " __VERSION__);
+    Serial.print("Device ID "); Serial.println(device_id);
+    Serial.println();
+  #endif
+
+  // Check if encoders are connected, only on startup, not hotpluging yet
+  // pinMode(POT_CHECK, INPUT_PULLUP); // LOW when remote is connected
+  potCheck.attach(POT_CHECK, INPUT_PULLUP);
+  potCheck.interval(50); //ms
+  pinMode(INT_PIN, INPUT);
+  // attachInterrupt(POT_CHECK, disconnectRemote, RISING);
+
+//-------------------------- Initializing encoders -----------------------------
+
+  remote_connected = !digitalRead(POT_CHECK);
+  if (remote_connected){initiateEncoders();}
 
 //-------------------------- Initializing steppers -----------------------------
   #ifdef SERIAL_DEBUGING
@@ -932,9 +960,17 @@ void setup() {
 //=================================== LOOP =====================================
 
 void loop() {
-  isLANconnected = checkEthernetConnection();
+  potCheck.update(); // Update the Bounce instance
 
-  remote_connected = !digitalRead(POT_CHECK);
+  if (potCheck.rose()) {
+    remoteDisconnected();
+  }
+
+  if (potCheck.fell()) {
+    remoteConnected();
+  }
+
+  isLANconnected = checkEthernetConnection();
 
   if (isLANconnected){
     EthernetBonjour.run();
