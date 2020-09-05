@@ -37,12 +37,6 @@
 //-------------------------------- settings ------------------------------------
 #define SERIAL_SPEED 115200
 
-// encoders settings
-int potFineStep[] = { 1, 1, 1 };
-int potCoarseStep[] = {10 ,10, 10};
-int potMin[] = { 0, 0, 0};
-int potMax[] = { 6144, 6144, 6144 };  // 6144 = 3 truns
-
 //------------------------------------------------------------------------------
 #include <Arduino.h>
 #include <SPI.h>
@@ -131,6 +125,13 @@ bool lock_remote = false;
 
 bool toggle[] = { 1, 1, 1 };  // starting with coarse adjustment
 float brightness = 1.0;
+
+// encoders settings
+// Focus, Aperture, Zoom
+int potFineStep[] = { 1, 1, 1 };
+int potCoarseStep[] = {10 ,10, 10};
+int potMin[] = { 0, 0, 0};
+int potMax[] = { 3400, 1700, 1580 };  // 6144 = 3 truns
 
 //---------------------------- MAC & IP list ----------------------------------
 // id stored in EEPROM, id points on array index and
