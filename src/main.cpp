@@ -109,8 +109,19 @@ int button3value = 2048;
 // INT -> 17
 
 //Class initialization with the I2C addresses
-i2cEncoderLibV2 RGBEncoder[ENCODER_N] = { i2cEncoderLibV2(0x01),
-                                          i2cEncoderLibV2(0x02),
+// address vs function
+// from top (cat5 socket)
+// 0x01 - pot 1
+// 0x02 - pot 2
+// 0x03 - pot 3
+
+// Indexing order motors and IDs
+// 1 - Aperture
+// 2 - Focus
+// 3 - Zoom
+
+i2cEncoderLibV2 RGBEncoder[ENCODER_N] = { i2cEncoderLibV2(0x02),
+                                          i2cEncoderLibV2(0x01),
                                           i2cEncoderLibV2(0x03),
                                         };
 uint8_t encoder_status, i;
