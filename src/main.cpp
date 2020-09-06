@@ -163,7 +163,7 @@ bool isLANconnected = false;
 EthernetUDP Udp;
 
 // OSC destination address, 255 broadcast
-IPAddress targetIP(10, 0, 10, 101);   // Isadora machine IP address
+IPAddress targetIP(10, 0, 10, 100);   // Isadora machine IP address
 const unsigned int destPort = 1234;          // remote port to receive OSC
 const unsigned int localPort = 4321;        // local port to listen for OSC packets
 
@@ -264,7 +264,6 @@ void encoder_click(i2cEncoderLibV2* obj) {
     RGBEncoder[pushed].writeStep((int32_t) potCoarseStep[pushed]);
   } else {
     RGBEncoder[pushed].writeStep((int32_t) potFineStep[pushed]);
-
   }
 
   #ifdef SERIAL_DEBUGING
@@ -503,8 +502,6 @@ void setEncodersMaxOSChandler(OSCMessage &msg, int addrOffset) {
 }
 
 // ------------------------------- other handlers ------------------------------
-
-
 void resetMotorsPositions(){
 
   for (int i=0; i<3; i++){
@@ -617,11 +614,6 @@ void sendOSCmessage(char* name, int value){
   strcat(message_osc_header, osc_prefix);
   strcat(message_osc_header, name);
 
-  // #ifdef SERIAL_DEBUGING
-  //   Serial.print("OSC header: ");
-  //   Serial.println(message_osc_header);
-  // #endif
-
   OSCMessage message(message_osc_header);
   message.add(value);
   Udp.beginPacket(targetIP, destPort);
@@ -631,10 +623,6 @@ void sendOSCmessage(char* name, int value){
 }
 
 void sendOSCreport(){
-  // #ifdef SERIAL_DEBUGING
-  //   Serial.print("Sending OSC raport ");
-  // #endif
-  // TODO fix sending -256 values when remote disconnected
   sendOSCmessage("/aperture", -stepper[0]->currentPosition());
   sendOSCmessage("/focus", -stepper[1]->currentPosition());
   sendOSCmessage("/zoom", -stepper[2]->currentPosition());
@@ -648,11 +636,6 @@ void sendOSCreport(){
 void sendOSCbundleReport(){
   //declare the bundle
   OSCBundle bndl;
-
-  // char message_osc_header[32];
-  // message_osc_header[0] = {0};
-  // strcat(message_osc_header, osc_prefix);
-  // strcat(message_osc_header, name);
 
   char message_osc_header_msg[32];
   message_osc_header_msg[0] = {0};
@@ -733,11 +716,6 @@ bool checkEthernetConnection(){
       // Serial.println("Ethernet cable is connected.");
     #endif
 
-    // #ifdef NEOPIXEL
-    //   pixels.setPixelColor(0, pixels.Color(0, 0, 150));
-    //   pixels.show();
-    // #endif
-
     return true;
   }
 }
@@ -784,6 +762,8 @@ void initiateEncoders(){
       RGBEncoder[enc_cnt].autoconfigInterrupt();
       RGBEncoder[enc_cnt].id = enc_cnt;
     }
+
+    // TODO update Toggle array to encoders
 }
 
 void remoteDisconnected(){
@@ -792,6 +772,7 @@ void remoteDisconnected(){
   #endif
   remote_connected = false;
   Wire.endTransmission();
+  // TODO fix sending -256 values when remote disconnected
 }
 
 void remoteConnected(){
@@ -807,7 +788,6 @@ void remoteConnected(){
 
   remote_connected = true;
 }
-
 
 //******************************************************************************
 
@@ -1018,8 +998,6 @@ void loop() {
     //   pixels.setPixelColor(0, pixels.Color(0, 0, 0));
     //   pixels.show();
     // #endif
-
-    // TODO where to set homing to false, is it necessery?
   }
 
   #ifdef WEB_SERVER
