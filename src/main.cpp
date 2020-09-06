@@ -600,9 +600,9 @@ void receiveOSCsingle(){
         msgIn.route("/set/focus/resetposition", resetFocusPositionOSCHandler);
         msgIn.route("/set/zoom/resetposition", resetZoomPositionOSCHandler);
 
-        msgIn.route("/set/aperture", apertureMoveToOSChandler);
-        msgIn.route("/set/focus", focusMoveToOSChandler);
-        msgIn.route("/set/zoom", zoomMoveToOSChandler);
+        msgIn.route("/set/aperture/position", apertureMoveToOSChandler);
+        msgIn.route("/set/focus/position", focusMoveToOSChandler);
+        msgIn.route("/set/zoom/position", zoomMoveToOSChandler);
 
         // TODO split reet to single notors
         msgIn.route("/reset/aperture", resetApertureOSChandler);
