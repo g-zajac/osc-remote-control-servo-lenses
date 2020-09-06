@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 323
+#define FIRMWARE_VERSION 324
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -503,15 +503,13 @@ void setEncodersMaxOSChandler(OSCMessage &msg, int addrOffset) {
 }
 
 // ------------------------------- other handlers ------------------------------
-void resetMotorsPositions(){
+void resetMotorsPositions(int motor){
 
-  for (int i=0; i<3; i++){
-    homeing[i] = true;
-    moveMotorToPosition(i, HOMING_POSITIONS[i]);
-  }
+    homeing[motor] = true;
+    moveMotorToPosition(motor, HOMING_POSITIONS[motor]);
 }
 
-void resetOSChandler(OSCMessage &msg, int addrOffset) {
+void resetApertureOSChandler(OSCMessage &msg, int addrOffset) {
   int inValue = receiveOSCvalue(msg);
 
   #ifdef NEOPIXEL
@@ -519,7 +517,29 @@ void resetOSChandler(OSCMessage &msg, int addrOffset) {
     pixels.show();
   #endif
 
-  resetMotorsPositions();
+  resetMotorsPositions(1);
+}
+
+void resetFocusOSChandler(OSCMessage &msg, int addrOffset) {
+  int inValue = receiveOSCvalue(msg);
+
+  #ifdef NEOPIXEL
+    pixels.setPixelColor(0, pixels.Color(255, 0, 0));
+    pixels.show();
+  #endif
+
+  resetMotorsPositions(0);
+}
+
+void resetZoomOSChandler(OSCMessage &msg, int addrOffset) {
+  int inValue = receiveOSCvalue(msg);
+
+  #ifdef NEOPIXEL
+    pixels.setPixelColor(0, pixels.Color(255, 0, 0));
+    pixels.show();
+  #endif
+
+  resetMotorsPositions(2);
 }
 
 void brightnessHandler(OSCMessage &msg, int addrOffset) {
@@ -585,11 +605,9 @@ void receiveOSCsingle(){
         msgIn.route("/set/zoom", zoomMoveToOSChandler);
 
         // TODO split reet to single notors
-        // /reset/aperture
-        // /reset/zoom
-        // /reset/focus
-
-        msgIn.route("/reset", resetOSChandler);
+        msgIn.route("/reset/aperture", resetApertureOSChandler);
+        msgIn.route("/reset/focus", resetFocusOSChandler);
+        msgIn.route("/reset/zoom", resetZoomOSChandler);
       }
 
       msgIn.route("/set/ledAperture", apertureLedOSChandler);
@@ -634,17 +652,6 @@ void sendOSCmessage(char* name, int value){
   Udp.endPacket();
   message.empty();
 }
-
-// void sendOSCreport(){
-//   sendOSCmessage("/aperture", -stepper[0]->currentPosition());
-//   sendOSCmessage("/focus", -stepper[1]->currentPosition());
-//   sendOSCmessage("/zoom", -stepper[2]->currentPosition());
-//   sendOSCmessage("/uptime", uptimeInSecs());
-//   sendOSCmessage("/ver", FIRMWARE_VERSION);
-//   #ifdef SERIAL_DEBUGING
-//     Serial.print(" *");
-//   #endif
-// }
 
 void sendOSCbundleReport(){
   //declare the bundle
@@ -986,7 +993,6 @@ void loop() {
         pixels.show();
       #endif
 
-      // sendOSCreport();
       sendOSCbundleReport();
 
       #ifdef NEOPIXEL
@@ -1215,7 +1221,9 @@ void loop() {
              #ifdef SERIAL_DEBUGING
                Serial.println("reset button pressed, homeing motors");
              #endif
-             resetMotorsPositions();
+             resetMotorsPositions(0);
+             resetMotorsPositions(1);
+             resetMotorsPositions(2);
            }
 
 
