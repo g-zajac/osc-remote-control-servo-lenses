@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 320
+#define FIRMWARE_VERSION 321
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -522,10 +522,17 @@ void resetOSChandler(OSCMessage &msg, int addrOffset) {
 }
 
 void brightnessHandler(OSCMessage &msg, int addrOffset) {
-  brightness = msg.getFloat(0);
+  float inValue = msg.getFloat(0);
 
   #ifdef SERIAL_DEBUGING
-    Serial.print("received brightness value: ");
+    Serial.print("brightness osc received value: ");
+    Serial.println(inValue);
+  #endif
+
+  brightness = inValue / 100.0;
+
+  #ifdef SERIAL_DEBUGING
+    Serial.print("brightness rescaled value: ");
     Serial.println(brightness);
   #endif
 
@@ -583,7 +590,7 @@ void receiveOSCsingle(){
       msgIn.route("/ledFocus", focusLedOSChandler);
       msgIn.route("/ledZoom", zoomLedOSChandler);
 
-      msgIn.route("/brightness", brightnessHandler);
+      msgIn.route("/set/brightness", brightnessHandler);
       msgIn.route("/set/encoders/lock", setEncoderLockOSChandler);
 
       msgIn.route("/set/encoders/fine", setEncodersStepFineOSChandler);
@@ -666,11 +673,12 @@ void sendOSCbundleReport(){
   message_osc_header_msg[0] = {0};
   strcat(message_osc_header_msg, osc_prefix);
   strcat(message_osc_header_msg, "/encoders/brightness");
-  bndl.add(message_osc_header_msg).add(brightness);
+  int brightness_remapped = (int)(brightness * 100);
+  bndl.add(message_osc_header_msg).add(brightness_remapped);
 
   message_osc_header_msg[0] = {0};
   strcat(message_osc_header_msg, osc_prefix);
-  strcat(message_osc_header_msg, "/interval");
+  strcat(message_osc_header_msg, "/frequency");
   bndl.add(message_osc_header_msg).add(interval);
 
   message_osc_header_msg[0] = {0};
