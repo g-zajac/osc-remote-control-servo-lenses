@@ -345,7 +345,7 @@ void apertureMoveToOSChandler(OSCMessage &msg, int addrOffset) {
   if (remote_connected){
     RGBEncoder[0].writeCounter((int32_t) inValue); //Reset of the CVAL register
   }
-  moveMotorToPosition(0, inValue);
+  moveMotorToPosition(1, inValue);
   lock_remote_on_osc = false;
 }
 
@@ -355,7 +355,7 @@ void focusMoveToOSChandler(OSCMessage &msg, int addrOffset) {
   if (remote_connected){
       RGBEncoder[1].writeCounter((int32_t) inValue); //Reset of the CVAL register
   }
-  moveMotorToPosition(1, inValue);
+  moveMotorToPosition(0, inValue);
   lock_remote_on_osc = false;
 }
 
