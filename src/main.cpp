@@ -576,22 +576,27 @@ void receiveOSCsingle(){
 
       // block osc messages when at least on motor is homeing
       if(!homeing[0] && !homeing[1] && !homeing[2]){
-        msgIn.route("/resetPosition/aperture", resetAperturePositionOSCHandler);
-        msgIn.route("/resetPosition/focus", resetFocusPositionOSCHandler);
-        msgIn.route("/resetPosition/zoom", resetZoomPositionOSCHandler);
+        msgIn.route("/set/aperture/ressetposition", resetAperturePositionOSCHandler);
+        msgIn.route("/set/focus/resetposition", resetFocusPositionOSCHandler);
+        msgIn.route("/set/zoom/resetposition", resetZoomPositionOSCHandler);
 
-        msgIn.route("/aperture", apertureMoveToOSChandler);
-        msgIn.route("/focus", focusMoveToOSChandler);
-        msgIn.route("/zoom", zoomMoveToOSChandler);
+        msgIn.route("/set/aperture", apertureMoveToOSChandler);
+        msgIn.route("/set/focus", focusMoveToOSChandler);
+        msgIn.route("/set/zoom", zoomMoveToOSChandler);
+
+        // TODO split reet to single notors
+        // /reset/aperture
+        // /reset/zoom
+        // /reset/focus
 
         msgIn.route("/reset", resetOSChandler);
       }
 
-      msgIn.route("/ledAperture", apertureLedOSChandler);
-      msgIn.route("/ledFocus", focusLedOSChandler);
-      msgIn.route("/ledZoom", zoomLedOSChandler);
+      msgIn.route("/set/ledAperture", apertureLedOSChandler);
+      msgIn.route("/set/ledFocus", focusLedOSChandler);
+      msgIn.route("/set/ledZoom", zoomLedOSChandler);
 
-      msgIn.route("/set/brightness", brightnessHandler);
+      msgIn.route("/set/encoders/brightness", brightnessHandler);
       msgIn.route("/set/encoders/lock", setEncoderLockOSChandler);
 
       msgIn.route("/set/encoders/fine", setEncodersStepFineOSChandler);
@@ -600,7 +605,7 @@ void receiveOSCsingle(){
       msgIn.route("/set/encoders/min", setEncodersMinOSChandler);
       msgIn.route("/set/encoders/max", setEncodersMaxOSChandler);
 
-      msgIn.route("/set/interval", setIntervalOSChandler);
+      msgIn.route("/set/OSCfrequency", setIntervalOSChandler);
 
       #ifdef NEOPIXEL
         pixels.setPixelColor(0, pixels.Color(255, 0, 150));
@@ -681,6 +686,11 @@ void sendOSCbundleReport(){
   strcat(message_osc_header_msg, "/encoders/brightness");
   int brightness_remapped = (int)(brightness * 100);
   bndl.add(message_osc_header_msg).add(brightness_remapped);
+
+  message_osc_header_msg[0] = {0};
+  strcat(message_osc_header_msg, osc_prefix);
+  strcat(message_osc_header_msg, "/encoders/lock");
+  bndl.add(message_osc_header_msg).add(lock_remote_master);
 
   message_osc_header_msg[0] = {0};
   strcat(message_osc_header_msg, osc_prefix);
