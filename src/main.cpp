@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 324
+#define FIRMWARE_VERSION 326
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -563,8 +563,7 @@ void brightnessHandler(OSCMessage &msg, int addrOffset) {
 void setEncoderLockOSChandler(OSCMessage &msg, int addrOffset) {
   int inValue = receiveOSCvalue(msg);
   if (inValue == 0){ lock_remote_master = false; }
-  else { lock_remote_master = true; }
-
+  if (inValue == 1){ lock_remote_master = true; }
   lock_remote_on_osc = false;
 }
 
@@ -697,7 +696,7 @@ void sendOSCbundleReport(){
   message_osc_header_msg[0] = {0};
   strcat(message_osc_header_msg, osc_prefix);
   strcat(message_osc_header_msg, "/encoders/lock");
-  bndl.add(message_osc_header_msg).add(lock_remote_master);
+  bndl.add(message_osc_header_msg).add((lock_remote_master == HIGH) ? 1 : 0);
 
   message_osc_header_msg[0] = {0};
   strcat(message_osc_header_msg, osc_prefix);
