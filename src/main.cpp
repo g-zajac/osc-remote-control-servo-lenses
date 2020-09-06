@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 321
+#define FIRMWARE_VERSION 322
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -187,6 +187,7 @@ char osc_prefix[16];                  // device OSC prefix message, i.e /camera1
 
 void moveMotorToPosition(uint8_t motor, int position){
       #ifdef SERIAL_DEBUGING
+      // TODO add array with names
         Serial.print("moving motor "); Serial.print(motor); Serial.print(" to position "); Serial.println(position);
       #endif
 
@@ -649,6 +650,12 @@ void sendOSCbundleReport(){
   strcat(message_osc_header_msg, osc_prefix);
   strcat(message_osc_header_msg, "/positions");
   bndl.add(message_osc_header_msg).add(-stepper[0]->currentPosition()).add(-stepper[1]->currentPosition()).add(-stepper[2]->currentPosition());
+
+  message_osc_header_msg[0] = {0};
+  strcat(message_osc_header_msg, osc_prefix);
+  strcat(message_osc_header_msg, "/positions/reset");
+  bndl.add(message_osc_header_msg).add(HOMING_POSITIONS[0]).add(HOMING_POSITIONS[1]).add(HOMING_POSITIONS[2]);
+
 
   message_osc_header_msg[0] = {0};
   strcat(message_osc_header_msg, osc_prefix);
