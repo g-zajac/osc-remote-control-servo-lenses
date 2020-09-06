@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 317
+#define FIRMWARE_VERSION 320
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -66,8 +66,8 @@
 //set up the accelStepper intance
 //the "1" tells it we are using a driver
 
-AccelStepper stepper1(AccelStepper::DRIVER, MOTOR1STEP_PIN, MOTOR1DIR_PIN);
-AccelStepper stepper2(AccelStepper::DRIVER, MOTOR2STEP_PIN, MOTOR2DIR_PIN);
+AccelStepper stepper2(AccelStepper::DRIVER, MOTOR1STEP_PIN, MOTOR1DIR_PIN);
+AccelStepper stepper1(AccelStepper::DRIVER, MOTOR2STEP_PIN, MOTOR2DIR_PIN);
 AccelStepper stepper3(AccelStepper::DRIVER, MOTOR3STEP_PIN, MOTOR3DIR_PIN);
 
 // AccelStepper pointers
@@ -80,7 +80,7 @@ int HOMEING_POSITION_APERTURE = -2048;
 int HOMEING_POSITION_FOCUS = -2048;
 int HOMEING_POSITION_ZOOM = -2048;
 
-int HOMING_POSITIONS[] = { HOMEING_POSITION_APERTURE, HOMEING_POSITION_FOCUS, HOMEING_POSITION_ZOOM };
+int HOMING_POSITIONS[] = { HOMEING_POSITION_FOCUS, HOMEING_POSITION_APERTURE, HOMEING_POSITION_ZOOM };
 
 // default motors speed and acceleration
 #define APERTURE_SPEED 500
@@ -117,8 +117,8 @@ int button3value = 2048;
 // 2 - Focus
 // 3 - Zoom
 
-i2cEncoderLibV2 RGBEncoder[ENCODER_N] = { i2cEncoderLibV2(0x02),
-                                          i2cEncoderLibV2(0x01),
+i2cEncoderLibV2 RGBEncoder[ENCODER_N] = { i2cEncoderLibV2(0x01),
+                                          i2cEncoderLibV2(0x02),
                                           i2cEncoderLibV2(0x03),
                                         };
 uint8_t encoder_status, i;
@@ -652,8 +652,22 @@ void sendOSCbundleReport(){
   strcat(message_osc_header_msg, osc_prefix);
   strcat(message_osc_header_msg, "/encoders/coarse");
   bndl.add(message_osc_header_msg).add(potCoarseStep[0]).add(potCoarseStep[1]).add(potCoarseStep[2]);
-  // bndl.add("/encoders/min").add();
-  // bndl.add("/encoders/max").add();
+
+  message_osc_header_msg[0] = {0};
+  strcat(message_osc_header_msg, osc_prefix);
+  strcat(message_osc_header_msg, "/encoders/min");
+  bndl.add(message_osc_header_msg).add(potMin[0]).add(potMin[1]).add(potMin[2]);
+
+  message_osc_header_msg[0] = {0};
+  strcat(message_osc_header_msg, osc_prefix);
+  strcat(message_osc_header_msg, "/encoders/max");
+  bndl.add(message_osc_header_msg).add(potMax[0]).add(potMax[1]).add(potMax[2]);
+
+  message_osc_header_msg[0] = {0};
+  strcat(message_osc_header_msg, osc_prefix);
+  strcat(message_osc_header_msg, "/encoders/brightness");
+  bndl.add(message_osc_header_msg).add(brightness);
+
   message_osc_header_msg[0] = {0};
   strcat(message_osc_header_msg, osc_prefix);
   strcat(message_osc_header_msg, "/interval");
@@ -666,7 +680,7 @@ void sendOSCbundleReport(){
 
   message_osc_header_msg[0] = {0};
   strcat(message_osc_header_msg, osc_prefix);
-  strcat(message_osc_header_msg, "/ver");
+  strcat(message_osc_header_msg, "/version");
   bndl.add(message_osc_header_msg).add(FIRMWARE_VERSION);
 
   // bndl.add("/aperture").add(-stepper[0]->currentPosition());
@@ -948,8 +962,8 @@ void loop() {
         pixels.show();
       #endif
 
-      sendOSCreport();
-      // sendOSCbundleReport();
+      // sendOSCreport();
+      sendOSCbundleReport();
 
       #ifdef NEOPIXEL
         pixels.setPixelColor(0, pixels.Color(0, 0, 150));
