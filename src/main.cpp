@@ -653,9 +653,18 @@ void sendOSCbundleReport(){
 
   message_osc_header_msg[0] = {0};
   strcat(message_osc_header_msg, osc_prefix);
+  strcat(message_osc_header_msg, "/encoders/min");
+  bndl.add(message_osc_header_msg).add(potMin[0]).add(potMin[1]).add(potMin[2]);
+
+  message_osc_header_msg[0] = {0};
+  strcat(message_osc_header_msg, osc_prefix);
+  strcat(message_osc_header_msg, "/encoders/max");
+  bndl.add(message_osc_header_msg).add(potMax[0]).add(potMax[1]).add(potMax[2]);
+
+  message_osc_header_msg[0] = {0};
+  strcat(message_osc_header_msg, osc_prefix);
   strcat(message_osc_header_msg, "/positions/reset");
   bndl.add(message_osc_header_msg).add(HOMING_POSITIONS[0]).add(HOMING_POSITIONS[1]).add(HOMING_POSITIONS[2]);
-
 
   message_osc_header_msg[0] = {0};
   strcat(message_osc_header_msg, osc_prefix);
@@ -669,23 +678,13 @@ void sendOSCbundleReport(){
 
   message_osc_header_msg[0] = {0};
   strcat(message_osc_header_msg, osc_prefix);
-  strcat(message_osc_header_msg, "/encoders/min");
-  bndl.add(message_osc_header_msg).add(potMin[0]).add(potMin[1]).add(potMin[2]);
-
-  message_osc_header_msg[0] = {0};
-  strcat(message_osc_header_msg, osc_prefix);
-  strcat(message_osc_header_msg, "/encoders/max");
-  bndl.add(message_osc_header_msg).add(potMax[0]).add(potMax[1]).add(potMax[2]);
-
-  message_osc_header_msg[0] = {0};
-  strcat(message_osc_header_msg, osc_prefix);
   strcat(message_osc_header_msg, "/encoders/brightness");
   int brightness_remapped = (int)(brightness * 100);
   bndl.add(message_osc_header_msg).add(brightness_remapped);
 
   message_osc_header_msg[0] = {0};
   strcat(message_osc_header_msg, osc_prefix);
-  strcat(message_osc_header_msg, "/frequency");
+  strcat(message_osc_header_msg, "/OSCfrequency");
   bndl.add(message_osc_header_msg).add(interval);
 
   message_osc_header_msg[0] = {0};
