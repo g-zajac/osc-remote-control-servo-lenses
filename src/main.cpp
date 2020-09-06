@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 322
+#define FIRMWARE_VERSION 323
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -44,7 +44,7 @@
 #include <EthernetBonjour.h>
 
 // TODO remove redundant
-#include <OSCMessage.h>
+// #include <OSCMessage.h>
 #include <OSCBundle.h>
 
 #include <Wire.h>
@@ -630,16 +630,16 @@ void sendOSCmessage(char* name, int value){
   message.empty();
 }
 
-void sendOSCreport(){
-  sendOSCmessage("/aperture", -stepper[0]->currentPosition());
-  sendOSCmessage("/focus", -stepper[1]->currentPosition());
-  sendOSCmessage("/zoom", -stepper[2]->currentPosition());
-  sendOSCmessage("/uptime", uptimeInSecs());
-  sendOSCmessage("/ver", FIRMWARE_VERSION);
-  #ifdef SERIAL_DEBUGING
-    Serial.print(" *");
-  #endif
-}
+// void sendOSCreport(){
+//   sendOSCmessage("/aperture", -stepper[0]->currentPosition());
+//   sendOSCmessage("/focus", -stepper[1]->currentPosition());
+//   sendOSCmessage("/zoom", -stepper[2]->currentPosition());
+//   sendOSCmessage("/uptime", uptimeInSecs());
+//   sendOSCmessage("/ver", FIRMWARE_VERSION);
+//   #ifdef SERIAL_DEBUGING
+//     Serial.print(" *");
+//   #endif
+// }
 
 void sendOSCbundleReport(){
   //declare the bundle
