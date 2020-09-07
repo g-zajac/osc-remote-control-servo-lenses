@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 326
+#define FIRMWARE_VERSION 341
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -43,8 +43,6 @@
 #include <Ethernet.h>
 #include <EthernetBonjour.h>
 
-// TODO remove redundant
-// #include <OSCMessage.h>
 #include <OSCBundle.h>
 
 #include <Wire.h>
@@ -163,7 +161,7 @@ bool isLANconnected = false;
 EthernetUDP Udp;
 
 // OSC destination address, 255 broadcast
-IPAddress targetIP(10, 0, 10, 100);   // Isadora machine IP address
+IPAddress targetIP(10, 0, 10, 101);   // Isadora machine IP address
 const unsigned int destPort = 1234;          // remote port to receive OSC
 const unsigned int localPort = 4321;        // local port to listen for OSC packets
 
@@ -182,6 +180,8 @@ char osc_prefix[16];                  // device OSC prefix message, i.e /camera1
 #ifdef NEOPIXEL
   Adafruit_NeoPixel pixels(NUMPIXELS, PIXEL_PIN, NEO_GRB + NEO_KHZ800);
 #endif
+
+bool status_led = true;
 
 //***************************** Functions *************************************
 
@@ -343,7 +343,7 @@ void apertureMoveToOSChandler(OSCMessage &msg, int addrOffset) {
   int inValue = receiveOSCvalue(msg);
 
   if (remote_connected){
-    RGBEncoder[0].writeCounter((int32_t) inValue); //Reset of the CVAL register
+    RGBEncoder[1].writeCounter((int32_t) inValue); //Reset of the CVAL register
   }
   moveMotorToPosition(1, inValue);
   lock_remote_on_osc = false;
@@ -353,7 +353,7 @@ void focusMoveToOSChandler(OSCMessage &msg, int addrOffset) {
   int inValue = receiveOSCvalue(msg);
 
   if (remote_connected){
-      RGBEncoder[1].writeCounter((int32_t) inValue); //Reset of the CVAL register
+      RGBEncoder[0].writeCounter((int32_t) inValue); //Reset of the CVAL register
   }
   moveMotorToPosition(0, inValue);
   lock_remote_on_osc = false;
@@ -377,20 +377,38 @@ long r_g_b2rgb(int r, int g, int b){
 
 void apertureLedOSChandler(OSCMessage &msg, int addrOffset) {
   long rgb = r_g_b2rgb(msg.getInt(0), msg.getInt(1), msg.getInt(2));
-  RGBEncoder[0].writeFadeRGB(0);
-  RGBEncoder[0].writeRGBCode(rgb);
-  lock_remote_on_osc = false;
-}
 
-void focusLedOSChandler(OSCMessage &msg, int addrOffset) {
-  long rgb = r_g_b2rgb(msg.getInt(0), msg.getInt(1), msg.getInt(2));
+  #ifdef SERIAL_DEBUGING
+    Serial.print("aperture led hex: ");
+    Serial.println(rgb);
+  #endif
+
   RGBEncoder[1].writeFadeRGB(0);
   RGBEncoder[1].writeRGBCode(rgb);
   lock_remote_on_osc = false;
 }
 
+void focusLedOSChandler(OSCMessage &msg, int addrOffset) {
+  long rgb = r_g_b2rgb(msg.getInt(0), msg.getInt(1), msg.getInt(2));
+
+  #ifdef SERIAL_DEBUGING
+    Serial.print("focus led hex: ");
+    Serial.println(rgb);
+  #endif
+
+  RGBEncoder[0].writeFadeRGB(0);
+  RGBEncoder[0].writeRGBCode(rgb);
+  lock_remote_on_osc = false;
+}
+
 void zoomLedOSChandler(OSCMessage &msg, int addrOffset) {
   long rgb = r_g_b2rgb(msg.getInt(0), msg.getInt(1), msg.getInt(2));
+
+  #ifdef SERIAL_DEBUGING
+    Serial.print("zoom led hex: ");
+    Serial.println(rgb);
+  #endif
+
   RGBEncoder[2].writeFadeRGB(0);
   RGBEncoder[2].writeRGBCode(rgb);
   lock_remote_on_osc = false;
@@ -401,12 +419,6 @@ void zoomLedOSChandler(OSCMessage &msg, int addrOffset) {
 void resetAperturePositionOSCHandler(OSCMessage &msg, int addrOffset) {
   int inValue = receiveOSCvalue(msg);
 
-  #ifdef NEOPIXEL
-    // TODO add global color
-    pixels.setPixelColor(0, pixels.Color(255, 0, 0));
-    pixels.show();
-  #endif
-
   HOMING_POSITIONS[0] = inValue;
 
   lock_remote_on_osc = false;
@@ -415,12 +427,6 @@ void resetAperturePositionOSCHandler(OSCMessage &msg, int addrOffset) {
 void resetFocusPositionOSCHandler(OSCMessage &msg, int addrOffset) {
   int inValue = receiveOSCvalue(msg);
 
-  #ifdef NEOPIXEL
-    // TODO add global color
-    pixels.setPixelColor(0, pixels.Color(255, 0, 0));
-    pixels.show();
-  #endif
-
   HOMING_POSITIONS[1] = inValue;
 
   lock_remote_on_osc = false;
@@ -428,12 +434,6 @@ void resetFocusPositionOSCHandler(OSCMessage &msg, int addrOffset) {
 
 void resetZoomPositionOSCHandler(OSCMessage &msg, int addrOffset) {
   int inValue = receiveOSCvalue(msg);
-
-  #ifdef NEOPIXEL
-    // TODO add global color
-    pixels.setPixelColor(0, pixels.Color(255, 0, 0));
-    pixels.show();
-  #endif
 
   HOMING_POSITIONS[2] = inValue;
 
@@ -512,21 +512,11 @@ void resetMotorsPositions(int motor){
 void resetApertureOSChandler(OSCMessage &msg, int addrOffset) {
   int inValue = receiveOSCvalue(msg);
 
-  #ifdef NEOPIXEL
-    pixels.setPixelColor(0, pixels.Color(255, 0, 0));
-    pixels.show();
-  #endif
-
   resetMotorsPositions(1);
 }
 
 void resetFocusOSChandler(OSCMessage &msg, int addrOffset) {
   int inValue = receiveOSCvalue(msg);
-
-  #ifdef NEOPIXEL
-    pixels.setPixelColor(0, pixels.Color(255, 0, 0));
-    pixels.show();
-  #endif
 
   resetMotorsPositions(0);
 }
@@ -534,21 +524,11 @@ void resetFocusOSChandler(OSCMessage &msg, int addrOffset) {
 void resetZoomOSChandler(OSCMessage &msg, int addrOffset) {
   int inValue = receiveOSCvalue(msg);
 
-  #ifdef NEOPIXEL
-    pixels.setPixelColor(0, pixels.Color(255, 0, 0));
-    pixels.show();
-  #endif
-
   resetMotorsPositions(2);
 }
 
 void brightnessHandler(OSCMessage &msg, int addrOffset) {
   float inValue = msg.getFloat(0);
-
-  #ifdef SERIAL_DEBUGING
-    Serial.print("brightness osc received value: ");
-    Serial.println(inValue);
-  #endif
 
   brightness = inValue / 100.0;
 
@@ -564,6 +544,19 @@ void setEncoderLockOSChandler(OSCMessage &msg, int addrOffset) {
   int inValue = receiveOSCvalue(msg);
   if (inValue == 0){ lock_remote_master = false; }
   if (inValue == 1){ lock_remote_master = true; }
+  lock_remote_on_osc = false;
+}
+
+void setStatusLedOSChandler(OSCMessage &msg, int addrOffset) {
+  int inValue = receiveOSCvalue(msg);
+  if (inValue == 0){
+    status_led = false;
+    #ifdef NEOPIXEL
+      pixels.setPixelColor(0, pixels.Color(0, 0, 0));
+      pixels.show();
+    #endif
+  }
+  if (inValue == 1){ status_led = true; }
   lock_remote_on_osc = false;
 }
 
@@ -591,6 +584,13 @@ void receiveOSCsingle(){
     // route messages
     if(!msgIn.hasError()) {
 
+      #ifdef NEOPIXEL
+      if (status_led){
+          pixels.setPixelColor(0, pixels.Color(255, 0, 0));
+          pixels.show();
+      }
+      #endif
+
       lock_remote_on_osc = true;
 
       // block osc messages when at least on motor is homeing
@@ -603,15 +603,14 @@ void receiveOSCsingle(){
         msgIn.route("/set/focus/position", focusMoveToOSChandler);
         msgIn.route("/set/zoom/position", zoomMoveToOSChandler);
 
-        // TODO split reet to single notors
         msgIn.route("/reset/aperture", resetApertureOSChandler);
         msgIn.route("/reset/focus", resetFocusOSChandler);
         msgIn.route("/reset/zoom", resetZoomOSChandler);
       }
 
-      msgIn.route("/set/ledAperture", apertureLedOSChandler);
-      msgIn.route("/set/ledFocus", focusLedOSChandler);
-      msgIn.route("/set/ledZoom", zoomLedOSChandler);
+      msgIn.route("/set/encoders/led/aperture", apertureLedOSChandler);
+      msgIn.route("/set/encoders/led/focus", focusLedOSChandler);
+      msgIn.route("/set/encoders/led/zoom", zoomLedOSChandler);
 
       msgIn.route("/set/encoders/brightness", brightnessHandler);
       msgIn.route("/set/encoders/lock", setEncoderLockOSChandler);
@@ -623,10 +622,13 @@ void receiveOSCsingle(){
       msgIn.route("/set/encoders/max", setEncodersMaxOSChandler);
 
       msgIn.route("/set/OSCfrequency", setIntervalOSChandler);
+      msgIn.route("/set/statusled", setStatusLedOSChandler);
 
       #ifdef NEOPIXEL
-        pixels.setPixelColor(0, pixels.Color(255, 0, 150));
-        pixels.show();
+        if (status_led){
+          pixels.setPixelColor(0, pixels.Color(255, 0, 150));
+          pixels.show();
+        }
       #endif
     }
 
@@ -636,20 +638,6 @@ void receiveOSCsingle(){
     Udp.stop();
     Udp.begin(localPort);
   }
-}
-
-void sendOSCmessage(char* name, int value){
-  char message_osc_header[32];
-  message_osc_header[0] = {0};
-  strcat(message_osc_header, osc_prefix);
-  strcat(message_osc_header, name);
-
-  OSCMessage message(message_osc_header);
-  message.add(value);
-  Udp.beginPacket(targetIP, destPort);
-  message.send(Udp);
-  Udp.endPacket();
-  message.empty();
 }
 
 void sendOSCbundleReport(){
@@ -713,12 +701,25 @@ void sendOSCbundleReport(){
   strcat(message_osc_header_msg, "/version");
   bndl.add(message_osc_header_msg).add(FIRMWARE_VERSION);
 
-  // bndl.add("/aperture").add(-stepper[0]->currentPosition());
-  // bndl.add("/focus").add(-stepper[1]->currentPosition());
-  // bndl.add("/zoom").add(-stepper[2]->currentPosition());
-  // bndl.add("/digital/5").add((digitalRead(5)==HIGH)?"HIGH":"LOW");
-  // bndl.add("/mouse/step").add((int32_t)analogRead(0)).add((int32_t)analogRead(1));
-  // bndl.add("/units").add("pixels");
+  message_osc_header_msg[0] = {0};
+  strcat(message_osc_header_msg, osc_prefix);
+  strcat(message_osc_header_msg, "/encoders/led/focus");
+  bndl.add(message_osc_header_msg).add(RGBEncoder[0].readLEDR()).add(RGBEncoder[0].readLEDG()).add(RGBEncoder[0].readLEDB());
+
+  message_osc_header_msg[0] = {0};
+  strcat(message_osc_header_msg, osc_prefix);
+  strcat(message_osc_header_msg, "/encoders/led/aperture");
+  bndl.add(message_osc_header_msg).add(RGBEncoder[1].readLEDR()).add(RGBEncoder[1].readLEDG()).add(RGBEncoder[1].readLEDB());
+
+  message_osc_header_msg[0] = {0};
+  strcat(message_osc_header_msg, osc_prefix);
+  strcat(message_osc_header_msg, "/encoders/led/zoom");
+  bndl.add(message_osc_header_msg).add(RGBEncoder[2].readLEDR()).add(RGBEncoder[2].readLEDG()).add(RGBEncoder[2].readLEDB());
+
+  message_osc_header_msg[0] = {0};
+  strcat(message_osc_header_msg, osc_prefix);
+  strcat(message_osc_header_msg, "/statusled");
+  bndl.add(message_osc_header_msg).add((status_led == true) ? 1 : 0);
 
   Udp.beginPacket(targetIP, destPort);
   bndl.send(Udp); // send the bytes to the SLIP stream
@@ -737,8 +738,10 @@ bool checkEthernetConnection(){
     #endif
 
     #ifdef NEOPIXEL
-      pixels.setPixelColor(0, pixels.Color(150, 0, 0));
-      pixels.show();
+      if (status_led){
+        pixels.setPixelColor(0, pixels.Color(150, 0, 0));
+        pixels.show();
+      }
     #endif
 
     return false;
@@ -749,8 +752,10 @@ bool checkEthernetConnection(){
     #endif
 
     #ifdef NEOPIXEL
-      pixels.setPixelColor(0, pixels.Color(150, 0, 0));
-      pixels.show();
+      if (status_led){
+        pixels.setPixelColor(0, pixels.Color(150, 0, 0));
+        pixels.show();
+      }
     #endif
 
     return false;
@@ -790,7 +795,10 @@ void initiateEncoders(){
       RGBEncoder[enc_cnt].writeCounter((int32_t) 0); //Reset of the CVAL register
       RGBEncoder[enc_cnt].writeMax((int32_t) potMax[enc_cnt]); //Set the maximum threshold to
       RGBEncoder[enc_cnt].writeMin((int32_t) potMin[enc_cnt]); //Set the minimum threshold to
+
+      // TODO update Toggle array to encoders
       RGBEncoder[enc_cnt].writeStep((int32_t) potCoarseStep[enc_cnt]); //The step at every encoder click is 1
+
       RGBEncoder[enc_cnt].writeRGBCode(0);
       RGBEncoder[enc_cnt].writeFadeRGB(3); //Fade enabled with 3ms step
       RGBEncoder[enc_cnt].writeAntibouncingPeriod(25); //250ms of debouncing
@@ -806,8 +814,6 @@ void initiateEncoders(){
       RGBEncoder[enc_cnt].autoconfigInterrupt();
       RGBEncoder[enc_cnt].id = enc_cnt;
     }
-
-    // TODO update Toggle array to encoders
 }
 
 void remoteDisconnected(){
@@ -829,7 +835,7 @@ void remoteConnected(){
   for (int i=0; i< 3; i++){
     RGBEncoder[i].writeCounter((int32_t) -stepper[i]->currentPosition());
   }
-
+  // TODO update toggle values
   remote_connected = true;
 }
 
@@ -843,8 +849,10 @@ void setup() {
     pixels.clear();
     pixels.show();
 
-    pixels.setPixelColor(0, pixels.Color(150, 150, 0));
-    pixels.show();
+    if (status_led){
+      pixels.setPixelColor(0, pixels.Color(150, 150, 0));
+      pixels.show();
+    }
   #endif
 
   #ifdef SERIAL_DEBUGING
@@ -955,8 +963,10 @@ void setup() {
   #endif
 
   #ifdef NEOPIXEL
-    pixels.setPixelColor(0, pixels.Color(0, 150, 0));
-    pixels.show();
+    if (status_led){
+      pixels.setPixelColor(0, pixels.Color(0, 150, 0));
+      pixels.show();
+    }
   #endif
 }
 
@@ -988,15 +998,19 @@ void loop() {
     if (isLANconnected){
 
       #ifdef NEOPIXEL
-        pixels.setPixelColor(0, pixels.Color(0, 255, 150));
-        pixels.show();
+        if (status_led){
+          pixels.setPixelColor(0, pixels.Color(0, 255, 150));
+          pixels.show();
+        }
       #endif
 
       sendOSCbundleReport();
 
       #ifdef NEOPIXEL
-        pixels.setPixelColor(0, pixels.Color(0, 0, 150));
-        pixels.show();
+        if (status_led){
+          pixels.setPixelColor(0, pixels.Color(0, 0, 150));
+          pixels.show();
+        }
       #endif
     }
   }
@@ -1019,7 +1033,18 @@ void loop() {
   for (int i=0; i<3; i++){
     stepper[i]->run();
 
+    // homeing indicator
+    if ( homeing[0] || homeing[1] || homeing[2] ){
+      #ifdef NEOPIXEL
+        if (status_led){
+          pixels.setPixelColor(0, pixels.Color(0, 255, 0));
+          pixels.show();
+        }
+      #endif
+    }
+
     if(homeing[i] && (-stepper[i]->currentPosition() == HOMING_POSITIONS[i]) ){
+
         stepper[i]->setCurrentPosition(0);
         if(remote_connected){
           RGBEncoder[i].writeCounter((int32_t) 0); //Reset of the CVAL register
@@ -1036,11 +1061,6 @@ void loop() {
           lock_remote_on_osc = false;
         }
     }
-
-    // #ifdef NEOPIXEL
-    //   pixels.setPixelColor(0, pixels.Color(0, 0, 0));
-    //   pixels.show();
-    // #endif
   }
 
   #ifdef WEB_SERVER
@@ -1212,8 +1232,10 @@ void loop() {
                Serial.println("Web button pressed, turning neopixel white");
              #endif
              #ifdef NEOPIXEL
-               pixels.setPixelColor(0, pixels.Color(255, 255, 255));
-               pixels.show();
+               if (status_led){
+                 pixels.setPixelColor(0, pixels.Color(255, 255, 255));
+                 pixels.show();
+               }
              #endif
            }
            if (readString.indexOf("?buttonResetclicked") > 0){
