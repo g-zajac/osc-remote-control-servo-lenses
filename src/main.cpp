@@ -677,6 +677,21 @@ void sendOSCbundleReport(){
 
   message_osc_header_msg[0] = {0};
   strcat(message_osc_header_msg, osc_prefix);
+  strcat(message_osc_header_msg, "/encoders/led/focus");
+  bndl.add(message_osc_header_msg).add(RGBEncoder[0].readLEDR()).add(RGBEncoder[0].readLEDG()).add(RGBEncoder[0].readLEDB());
+
+  message_osc_header_msg[0] = {0};
+  strcat(message_osc_header_msg, osc_prefix);
+  strcat(message_osc_header_msg, "/encoders/led/aperture");
+  bndl.add(message_osc_header_msg).add(RGBEncoder[1].readLEDR()).add(RGBEncoder[1].readLEDG()).add(RGBEncoder[1].readLEDB());
+
+  message_osc_header_msg[0] = {0};
+  strcat(message_osc_header_msg, osc_prefix);
+  strcat(message_osc_header_msg, "/encoders/led/zoom");
+  bndl.add(message_osc_header_msg).add(RGBEncoder[2].readLEDR()).add(RGBEncoder[2].readLEDG()).add(RGBEncoder[2].readLEDB());
+
+  message_osc_header_msg[0] = {0};
+  strcat(message_osc_header_msg, osc_prefix);
   strcat(message_osc_header_msg, "/encoders/brightness");
   int brightness_remapped = (int)(brightness * 100);
   bndl.add(message_osc_header_msg).add(brightness_remapped);
@@ -693,6 +708,11 @@ void sendOSCbundleReport(){
 
   message_osc_header_msg[0] = {0};
   strcat(message_osc_header_msg, osc_prefix);
+  strcat(message_osc_header_msg, "/statusled");
+  bndl.add(message_osc_header_msg).add((status_led == true) ? 1 : 0);
+
+  message_osc_header_msg[0] = {0};
+  strcat(message_osc_header_msg, osc_prefix);
   strcat(message_osc_header_msg, "/uptime");
   bndl.add(message_osc_header_msg).add(uptimeInSecs());
 
@@ -700,26 +720,6 @@ void sendOSCbundleReport(){
   strcat(message_osc_header_msg, osc_prefix);
   strcat(message_osc_header_msg, "/version");
   bndl.add(message_osc_header_msg).add(FIRMWARE_VERSION);
-
-  message_osc_header_msg[0] = {0};
-  strcat(message_osc_header_msg, osc_prefix);
-  strcat(message_osc_header_msg, "/encoders/led/focus");
-  bndl.add(message_osc_header_msg).add(RGBEncoder[0].readLEDR()).add(RGBEncoder[0].readLEDG()).add(RGBEncoder[0].readLEDB());
-
-  message_osc_header_msg[0] = {0};
-  strcat(message_osc_header_msg, osc_prefix);
-  strcat(message_osc_header_msg, "/encoders/led/aperture");
-  bndl.add(message_osc_header_msg).add(RGBEncoder[1].readLEDR()).add(RGBEncoder[1].readLEDG()).add(RGBEncoder[1].readLEDB());
-
-  message_osc_header_msg[0] = {0};
-  strcat(message_osc_header_msg, osc_prefix);
-  strcat(message_osc_header_msg, "/encoders/led/zoom");
-  bndl.add(message_osc_header_msg).add(RGBEncoder[2].readLEDR()).add(RGBEncoder[2].readLEDG()).add(RGBEncoder[2].readLEDB());
-
-  message_osc_header_msg[0] = {0};
-  strcat(message_osc_header_msg, osc_prefix);
-  strcat(message_osc_header_msg, "/statusled");
-  bndl.add(message_osc_header_msg).add((status_led == true) ? 1 : 0);
 
   Udp.beginPacket(targetIP, destPort);
   bndl.send(Udp); // send the bytes to the SLIP stream
