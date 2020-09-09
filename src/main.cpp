@@ -90,7 +90,7 @@ int HOMING_POSITIONS[] = { HOMEING_POSITION_FOCUS, HOMEING_POSITION_APERTURE, HO
 #define ZOOM_SPEED 500
 #define ZOOM_ACCELERATION 1000
 
-
+// web buttons postions
 int button1value = 2048;
 int button2value = 2048;
 int button3value = 2048;
@@ -248,33 +248,43 @@ void encoder_rotated(i2cEncoderLibV2* obj) {
     moveMotorToPosition(motorID, position);
 }
 
-void encoder_click(i2cEncoderLibV2* obj) {
+void encoder_pushed(i2cEncoderLibV2* obj) {
+  Serial.println("button pushed");
+  // TOD start timer if < 200ms then Toggle if > then homeing, millis check?
+  Serial.println(RGBEncoder[0].readStatus());
+}
+
+void encoder_released(i2cEncoderLibV2* obj) {
   int pushed = obj->id;
-  toggle[pushed] = !toggle[pushed];
 
-  obj->writeFadeRGB(3);
-  if ( toggle[pushed] ){
-      // coarse adjustemnt in blue
-      obj->writeRGBCode(rgb2hex(0, 0, 255, brightness));
-  } else {
-      // fine adjustment in green
-      obj->writeRGBCode(rgb2hex(0, 255, 0, brightness));
-  }
-  // update pot step (toggle = 1 -> coarse, 0 -> fine)
-  if (toggle[pushed]) {
-    RGBEncoder[pushed].writeStep((int32_t) potCoarseStep[pushed]);
-  } else {
-    RGBEncoder[pushed].writeStep((int32_t) potFineStep[pushed]);
-  }
+  // toggle and update only if locke off?
+  if(!lock_remote_master){
+    toggle[pushed] = !toggle[pushed];
 
-  #ifdef SERIAL_DEBUGING
-    Serial.print("Toggle =  ");
-    Serial.print(toggle[0]);
-    Serial.print('\t');
-    Serial.print(toggle[1]);
-    Serial.print('\t');
-    Serial.println(toggle[2]);
-  #endif
+    obj->writeFadeRGB(3);
+    if ( toggle[pushed] ){
+        // coarse adjustemnt in blue
+        obj->writeRGBCode(rgb2hex(0, 0, 255, brightness));
+    } else {
+        // fine adjustment in green
+        obj->writeRGBCode(rgb2hex(0, 255, 0, brightness));
+    }
+    // update pot step (toggle = 1 -> coarse, 0 -> fine)
+    if (toggle[pushed]) {
+      RGBEncoder[pushed].writeStep((int32_t) potCoarseStep[pushed]);
+    } else {
+      RGBEncoder[pushed].writeStep((int32_t) potFineStep[pushed]);
+    }
+
+    #ifdef SERIAL_DEBUGING
+      Serial.print("Toggle =  ");
+      Serial.print(toggle[0]);
+      Serial.print('\t');
+      Serial.print(toggle[1]);
+      Serial.print('\t');
+      Serial.println(toggle[2]);
+    #endif
+  }
 
 }
 
@@ -542,8 +552,35 @@ void brightnessHandler(OSCMessage &msg, int addrOffset) {
 
 void setEncoderLockOSChandler(OSCMessage &msg, int addrOffset) {
   int inValue = receiveOSCvalue(msg);
-  if (inValue == 0){ lock_remote_master = false; }
-  if (inValue == 1){ lock_remote_master = true; }
+  if (inValue == 0){
+    // turn on interrupts
+    RGBEncoder[0].writeInterruptConfig(i2cEncoderLibV2::INT_2 | i2cEncoderLibV2::RMIN | i2cEncoderLibV2::RMAX | i2cEncoderLibV2::RDEC | i2cEncoderLibV2::RINC |  i2cEncoderLibV2::PUSHR | i2cEncoderLibV2::PUSHP);
+    // update, overwrite encoder with current motor position
+    for (int i=0; i<3; i++){
+      RGBEncoder[i].writeCounter((int32_t) -stepper[i]->currentPosition());
+      // update encoder with toggle state
+      if (toggle[i]) {
+        RGBEncoder[i].writeStep((int32_t) potCoarseStep[i]);
+      } else {
+        RGBEncoder[i].writeStep((int32_t) potFineStep[i]);
+      }
+    }
+    lock_remote_master = false;
+
+    #ifdef SERIAL_DEBUGING
+      Serial.print("Toggle =  ");
+      Serial.print(toggle[0]);
+      Serial.print('\t');
+      Serial.print(toggle[1]);
+      Serial.print('\t');
+      Serial.println(toggle[2]);
+    #endif
+
+   }
+  if (inValue == 1){
+    // turn off all interrupts
+    RGBEncoder[0].writeInterruptConfig(i2cEncoderLibV2::INT_2);
+    lock_remote_master = true; }
   lock_remote_on_osc = false;
 }
 
@@ -806,7 +843,8 @@ void initiateEncoders(){
 
       /* Configure the events */
       RGBEncoder[enc_cnt].onChange = encoder_rotated;
-      RGBEncoder[enc_cnt].onButtonRelease = encoder_click;
+      RGBEncoder[enc_cnt].onButtonRelease = encoder_released;
+      RGBEncoder[enc_cnt].onButtonPush = encoder_pushed;
       RGBEncoder[enc_cnt].onMinMax = encoder_thresholds;
       RGBEncoder[enc_cnt].onFadeProcess = encoder_fade;
 
@@ -1025,7 +1063,7 @@ void loop() {
         if (digitalRead(INT_PIN) == HIGH) { //If the interrupt pin return high, exit from the encoder scan
           break;
         }
-        RGBEncoder[enc_cnt].updateStatus();
+          RGBEncoder[enc_cnt].updateStatus();
       }
     }
   }
