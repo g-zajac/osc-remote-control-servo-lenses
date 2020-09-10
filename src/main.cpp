@@ -135,6 +135,16 @@ int potCoarseStep[] = {10 ,10, 10};
 int potMin[] = { 0, 0, 0};
 int potMax[] = { 3400, 1700, 1580 };  // 6144 = 3 truns
 
+// time captured when encoder pressed
+long hold_timer[] = {0, 0, 0};
+// time after which orange warning led is turned on
+int warning_time_passed = 3000;
+int reset_time_passed = 3000;
+// flag which blocks the release after holding time when reset is triggered to prevent toggle fine/coarse
+bool cancel_release[] = {false, false, false};
+
+// this bounce is for remote connect/disconnect detection only!
+// encoders bounce is programmed inside encoders with I2C
 Bounce potCheck = Bounce(); // Instantiate a Bounce object
 
 
@@ -181,6 +191,7 @@ char osc_prefix[16];                  // device OSC prefix message, i.e /camera1
   Adafruit_NeoPixel pixels(NUMPIXELS, PIXEL_PIN, NEO_GRB + NEO_KHZ800);
 #endif
 
+// flag for turning side status LED on/off. Controlled with OSC
 bool status_led = true;
 
 //***************************** Functions *************************************
@@ -214,52 +225,72 @@ int rgb2hex(int r, int g, int b, float br){
 // -------------------------- Encoder callbacks --------------------------------
 //Callback when the encoder is rotated
 void encoder_rotated(i2cEncoderLibV2* obj) {
-  if (obj->readStatus(i2cEncoderLibV2::RINC))
-    {
-      #ifdef SERIAL_DEBUGING
-        Serial.print("Encoder incremented ");
-      #endif
-    }
-    else {
-      #ifdef SERIAL_DEBUGING
-        Serial.print("Encoder decremented ");
-      #endif
-    }
 
-    int motorID = (obj->id);
-    int position =obj->readCounterInt();
-    #ifdef SERIAL_DEBUGING
-      Serial.print(motorID);
-      Serial.print(": ");
-      Serial.println(position);
-      // Serial.print("global brightness: "); Serial.println(brightness);
-    #endif
+  // if manual reset triggered prevent from changing value
+  if ( !homeing[obj->id] ){
 
-    if(!lock_remote_master){
-      obj->writeFadeRGB(3);
-      if ( toggle[obj->id] ){
-          // coarse adjustemnt in blue
-          obj->writeRGBCode(rgb2hex(0, 0, 255, brightness));
-      } else {
-          // fine adjustment in green
-          obj->writeRGBCode(rgb2hex(0, 255, 0, brightness));
+    if (obj->readStatus(i2cEncoderLibV2::RINC))
+      {
+        #ifdef SERIAL_DEBUGING
+          Serial.print("Encoder incremented ");
+        #endif
+      }
+      else {
+        #ifdef SERIAL_DEBUGING
+          Serial.print("Encoder decremented ");
+        #endif
       }
 
-      moveMotorToPosition(motorID, position);
-    }
+      int motorID = (obj->id);
+      int position =obj->readCounterInt();
+      #ifdef SERIAL_DEBUGING
+        Serial.print(motorID);
+        Serial.print(": ");
+        Serial.println(position);
+      #endif
 
+      if(!lock_remote_master){
+        obj->writeFadeRGB(3);
+        if ( toggle[obj->id] ){
+            // coarse adjustemnt in blue
+            obj->writeRGBCode(rgb2hex(0, 0, 255, brightness));
+        } else {
+            // fine adjustment in green
+            obj->writeRGBCode(rgb2hex(0, 255, 0, brightness));
+        }
+
+        moveMotorToPosition(motorID, position);
+      }
+
+  }
 }
 
 void encoder_pushed(i2cEncoderLibV2* obj) {
-  Serial.println("=============== BUTTON HAS BEEN OUSHED ====================");
-  // TOD start timer if < 200ms then Toggle if > then homeing, millis check?
-  Serial.println(RGBEncoder[0].readStatus());
+  #ifdef SERIAL_DEBUGING
+    Serial.print("=============== BUTTON "); Serial.print(obj->id); Serial.println(" HAS BEEN PUSHED ====================");
+  #endif
+  // start holding timer only if encoders is not locked  and selected motor is not in homeing
+  if (!lock_remote_master && !homeing[obj->id] ) {
+    // start hold timer
+    hold_timer[obj->id] = millis();
+  }
+  // reset releace cancel block flag
+  cancel_release[obj->id] = false;
 }
 
 void encoder_released(i2cEncoderLibV2* obj) {
 
-  // toggle and update only if locke off?
-  if(!lock_remote_master){
+  hold_timer[obj->id] = 0;
+
+  #ifdef SERIAL_DEBUGING
+    Serial.print("=============== BUTTON "); Serial.print(obj->id); Serial.println(" HAS BEEN RELEASED ====================");
+    Serial.print("lock_remote_master: "); Serial.println(lock_remote_master);
+    Serial.print("cancel_release: "); Serial.println(cancel_release[obj->id]);
+  #endif
+
+  // toggle and update only if not locked, not homeing and not blocked
+  if( !lock_remote_master && !cancel_release[obj->id] && !homeing[obj->id] ) {
+
     int pushed = obj->id;
     toggle[pushed] = !toggle[pushed];
 
@@ -1058,6 +1089,32 @@ void loop() {
   // check pots
   uint8_t enc_cnt;
 
+  // check for button has been pressed and holded
+  if (remote_connected && !lock_remote_on_osc){
+    for (int i=0; i < 3; i++){
+      // check if button pressed
+      if (hold_timer[i] > 0){
+        // start timer
+        long time_now = millis();
+
+        // if button holded for treshold + 3sec -
+        if (time_now - hold_timer[i] > warning_time_passed + reset_time_passed){
+          #ifdef SERIAL_DEBUGING
+            Serial.println("MANUAL HOMEING");
+          #endif
+          RGBEncoder[i].writeRGBCode(rgb2hex(0, 0, 0, brightness));
+          hold_timer[i] = 0;
+          cancel_release[i] = true;
+          // home selected motor
+          resetMotorsPositions(i);
+          break;
+        } else if (time_now - hold_timer[i] > warning_time_passed){
+          RGBEncoder[i].writeRGBCode(rgb2hex(255, 147, 0, brightness));
+        }
+      }
+    }
+  }
+
   if ( remote_connected && !lock_remote_on_osc ){
     if (digitalRead(INT_PIN) == LOW) {
       //Interrupt from the encoders, start to scan the encoder matrix
@@ -1066,14 +1123,6 @@ void loop() {
           break;
         }
           RGBEncoder[enc_cnt].updateStatus();
-
-          // if (RGBEncoder[enc_cnt].updateStatus()){
-          //   if (RGBEncoder[enc_cnt].readStatus(i2cEncoderLibV2::RINC)){
-          //     Serial.print("Increment: ");
-          //     Serial.println(RGBEncoder[enc_cnt].readCounterByte());
-          //   }
-          // }
-
       }
     }
   }
@@ -1085,7 +1134,7 @@ void loop() {
     if ( homeing[0] || homeing[1] || homeing[2] ){
       #ifdef NEOPIXEL
         if (status_led){
-          pixels.setPixelColor(0, pixels.Color(0, 255, 0));
+          pixels.setPixelColor(0, pixels.Color(255, 147, 0));
           pixels.show();
         }
       #endif
@@ -1105,7 +1154,9 @@ void loop() {
 
         // if all restarted then unlock remote
         if ( !homeing[0] && !homeing[1] && !homeing[2] ){
-          Serial.println("All motors reset to 0");
+          #ifdef SERIAL_DEBUGING
+            Serial.println("All motors reset to 0");
+          #endif
           lock_remote_on_osc = false;
         }
     }
