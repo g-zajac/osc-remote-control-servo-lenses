@@ -235,17 +235,19 @@ void encoder_rotated(i2cEncoderLibV2* obj) {
       // Serial.print("global brightness: "); Serial.println(brightness);
     #endif
 
-    obj->writeFadeRGB(3);
-    if ( toggle[obj->id] ){
-        // coarse adjustemnt in blue
-        obj->writeRGBCode(rgb2hex(0, 0, 255, brightness));
-    } else {
-        // fine adjustment in green
-        obj->writeRGBCode(rgb2hex(0, 255, 0, brightness));
+    if(!lock_remote_master){
+      obj->writeFadeRGB(3);
+      if ( toggle[obj->id] ){
+          // coarse adjustemnt in blue
+          obj->writeRGBCode(rgb2hex(0, 0, 255, brightness));
+      } else {
+          // fine adjustment in green
+          obj->writeRGBCode(rgb2hex(0, 255, 0, brightness));
+      }
+
+      moveMotorToPosition(motorID, position);
     }
 
-
-    moveMotorToPosition(motorID, position);
 }
 
 void encoder_pushed(i2cEncoderLibV2* obj) {
@@ -289,6 +291,7 @@ void encoder_released(i2cEncoderLibV2* obj) {
 }
 
 void encoder_thresholds(i2cEncoderLibV2* obj) {
+
   if (obj->readStatus(i2cEncoderLibV2::RMAX))
     {
       #ifdef SERIAL_DEBUGING
@@ -301,8 +304,11 @@ void encoder_thresholds(i2cEncoderLibV2* obj) {
         Serial.println(obj->id);
       #endif
     }
-    obj->writeRGBCode(rgb2hex(255, 0, 0, brightness));
+    if (!lock_remote_master){
+      obj->writeRGBCode(rgb2hex(255, 0, 0, brightness));
+    }
 }
+
 
 void encoder_fade(i2cEncoderLibV2* obj) {
   obj->writeRGBCode(0x000000);
@@ -553,33 +559,30 @@ void brightnessHandler(OSCMessage &msg, int addrOffset) {
 void setEncoderLockOSChandler(OSCMessage &msg, int addrOffset) {
   int inValue = receiveOSCvalue(msg);
   if (inValue == 0){
-    RGBEncoder[0].onButtonPush = encoder_pushed;
-    RGBEncoder[0].onButtonRelease = encoder_released;
-    // RGBEncoder[0].writeStep((int32_t) potCoarseStep[0]);
-    // turn on interrupts
-    // RGBEncoder[0].writeInterruptConfig(i2cEncoderLibV2::INT_2 | i2cEncoderLibV2::RMIN | i2cEncoderLibV2::RMAX | i2cEncoderLibV2::RDEC | i2cEncoderLibV2::RINC |  i2cEncoderLibV2::PUSHR | i2cEncoderLibV2::PUSHP);
-    // update, overwrite encoder with current motor position
     for (int i=0; i<3; i++){
+      RGBEncoder[i].onButtonPush = encoder_pushed;
+      RGBEncoder[i].onButtonRelease = encoder_released;
       RGBEncoder[i].writeCounter((int32_t) -stepper[i]->currentPosition());
       // update encoder with toggle state
       // Serial.println("overwriting toggle");
-      // if (toggle[i]) {
-      //   RGBEncoder[i].writeStep((int32_t) potCoarseStep[i]);
-      // } else {
-      //   RGBEncoder[i].writeStep((int32_t) potFineStep[i]);
-      // }
+      if (toggle[i]) {
+        RGBEncoder[i].writeStep((int32_t) potCoarseStep[i]);
+      } else {
+        RGBEncoder[i].writeStep((int32_t) potFineStep[i]);
+      }
     }
-
     lock_remote_master = false;
    }
-  if (inValue == 1){
-    RGBEncoder[0].onButtonPush = NULL;
-    RGBEncoder[0].onButtonRelease = NULL;
-    RGBEncoder[0].writeStep((int32_t) 0);
-    // turn off all interrupts
-    // RGBEncoder[0].writeInterruptConfig(i2cEncoderLibV2::INT_2);
 
-    lock_remote_master = true; }
+  if (inValue == 1){
+    for (int i=0; i<3; i++){
+      RGBEncoder[i].onButtonPush = NULL;
+      RGBEncoder[i].onButtonRelease = NULL;
+      RGBEncoder[i].writeStep((int32_t) 0);
+    }
+    lock_remote_master = true;
+  }
+
   lock_remote_on_osc = false;
 }
 
@@ -1055,7 +1058,7 @@ void loop() {
   // check pots
   uint8_t enc_cnt;
 
-  if ( remote_connected && !lock_remote_on_osc && !lock_remote_master ){
+  if ( remote_connected && !lock_remote_on_osc ){
     if (digitalRead(INT_PIN) == LOW) {
       //Interrupt from the encoders, start to scan the encoder matrix
       for (enc_cnt = 0; enc_cnt < ENCODER_N; enc_cnt++) {
