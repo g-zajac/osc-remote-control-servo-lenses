@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 317
+#define FIRMWARE_VERSION 341
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -43,8 +43,6 @@
 #include <Ethernet.h>
 #include <EthernetBonjour.h>
 
-// TODO remove redundant
-#include <OSCMessage.h>
 #include <OSCBundle.h>
 
 #include <Wire.h>
@@ -66,8 +64,8 @@
 //set up the accelStepper intance
 //the "1" tells it we are using a driver
 
-AccelStepper stepper1(AccelStepper::DRIVER, MOTOR1STEP_PIN, MOTOR1DIR_PIN);
-AccelStepper stepper2(AccelStepper::DRIVER, MOTOR2STEP_PIN, MOTOR2DIR_PIN);
+AccelStepper stepper2(AccelStepper::DRIVER, MOTOR1STEP_PIN, MOTOR1DIR_PIN);
+AccelStepper stepper1(AccelStepper::DRIVER, MOTOR2STEP_PIN, MOTOR2DIR_PIN);
 AccelStepper stepper3(AccelStepper::DRIVER, MOTOR3STEP_PIN, MOTOR3DIR_PIN);
 
 // AccelStepper pointers
@@ -80,7 +78,7 @@ int HOMEING_POSITION_APERTURE = -2048;
 int HOMEING_POSITION_FOCUS = -2048;
 int HOMEING_POSITION_ZOOM = -2048;
 
-int HOMING_POSITIONS[] = { HOMEING_POSITION_APERTURE, HOMEING_POSITION_FOCUS, HOMEING_POSITION_ZOOM };
+int HOMING_POSITIONS[] = { HOMEING_POSITION_FOCUS, HOMEING_POSITION_APERTURE, HOMEING_POSITION_ZOOM };
 
 // default motors speed and acceleration
 #define APERTURE_SPEED 500
@@ -92,7 +90,7 @@ int HOMING_POSITIONS[] = { HOMEING_POSITION_APERTURE, HOMEING_POSITION_FOCUS, HO
 #define ZOOM_SPEED 500
 #define ZOOM_ACCELERATION 1000
 
-
+// web buttons postions
 int button1value = 2048;
 int button2value = 2048;
 int button3value = 2048;
@@ -117,8 +115,8 @@ int button3value = 2048;
 // 2 - Focus
 // 3 - Zoom
 
-i2cEncoderLibV2 RGBEncoder[ENCODER_N] = { i2cEncoderLibV2(0x02),
-                                          i2cEncoderLibV2(0x01),
+i2cEncoderLibV2 RGBEncoder[ENCODER_N] = { i2cEncoderLibV2(0x01),
+                                          i2cEncoderLibV2(0x02),
                                           i2cEncoderLibV2(0x03),
                                         };
 uint8_t encoder_status, i;
@@ -137,6 +135,16 @@ int potCoarseStep[] = {10 ,10, 10};
 int potMin[] = { 0, 0, 0};
 int potMax[] = { 3400, 1700, 1580 };  // 6144 = 3 truns
 
+// time captured when encoder pressed
+long hold_timer[] = {0, 0, 0};
+// time after which orange warning led is turned on
+int warning_time_passed = 3000;
+int reset_time_passed = 3000;
+// flag which blocks the release after holding time when reset is triggered to prevent toggle fine/coarse
+bool cancel_release[] = {false, false, false};
+
+// this bounce is for remote connect/disconnect detection only!
+// encoders bounce is programmed inside encoders with I2C
 Bounce potCheck = Bounce(); // Instantiate a Bounce object
 
 
@@ -183,10 +191,14 @@ char osc_prefix[16];                  // device OSC prefix message, i.e /camera1
   Adafruit_NeoPixel pixels(NUMPIXELS, PIXEL_PIN, NEO_GRB + NEO_KHZ800);
 #endif
 
+// flag for turning side status LED on/off. Controlled with OSC
+bool status_led = true;
+
 //***************************** Functions *************************************
 
 void moveMotorToPosition(uint8_t motor, int position){
       #ifdef SERIAL_DEBUGING
+      // TODO add array with names
         Serial.print("moving motor "); Serial.print(motor); Serial.print(" to position "); Serial.println(position);
       #endif
 
@@ -213,72 +225,104 @@ int rgb2hex(int r, int g, int b, float br){
 // -------------------------- Encoder callbacks --------------------------------
 //Callback when the encoder is rotated
 void encoder_rotated(i2cEncoderLibV2* obj) {
-  if (obj->readStatus(i2cEncoderLibV2::RINC))
-    {
-      #ifdef SERIAL_DEBUGING
-        Serial.print("Encoder incremented ");
-      #endif
-    }
-    else {
-      #ifdef SERIAL_DEBUGING
-        Serial.print("Encoder decremented ");
-      #endif
-    }
 
-    int motorID = (obj->id);
-    int position =obj->readCounterInt();
-    #ifdef SERIAL_DEBUGING
-      Serial.print(motorID);
-      Serial.print(": ");
-      Serial.println(position);
-      // Serial.print("global brightness: "); Serial.println(brightness);
-    #endif
+  // if manual reset triggered prevent from changing value
+  if ( !homeing[obj->id] ){
+
+    if (obj->readStatus(i2cEncoderLibV2::RINC))
+      {
+        #ifdef SERIAL_DEBUGING
+          Serial.print("Encoder incremented ");
+        #endif
+      }
+      else {
+        #ifdef SERIAL_DEBUGING
+          Serial.print("Encoder decremented ");
+        #endif
+      }
+
+      int motorID = (obj->id);
+      int position =obj->readCounterInt();
+      #ifdef SERIAL_DEBUGING
+        Serial.print(motorID);
+        Serial.print(": ");
+        Serial.println(position);
+      #endif
+
+      if(!lock_remote_master){
+        obj->writeFadeRGB(3);
+        if ( toggle[obj->id] ){
+            // coarse adjustemnt in blue
+            obj->writeRGBCode(rgb2hex(0, 0, 255, brightness));
+        } else {
+            // fine adjustment in green
+            obj->writeRGBCode(rgb2hex(0, 255, 0, brightness));
+        }
+
+        moveMotorToPosition(motorID, position);
+      }
+
+  }
+}
+
+void encoder_pushed(i2cEncoderLibV2* obj) {
+  #ifdef SERIAL_DEBUGING
+    Serial.print("=============== BUTTON "); Serial.print(obj->id); Serial.println(" HAS BEEN PUSHED ====================");
+  #endif
+  // start holding timer only if encoders is not locked  and selected motor is not in homeing
+  if (!lock_remote_master && !homeing[obj->id] ) {
+    // start hold timer
+    hold_timer[obj->id] = millis();
+  }
+  // reset releace cancel block flag
+  cancel_release[obj->id] = false;
+}
+
+void encoder_released(i2cEncoderLibV2* obj) {
+
+  hold_timer[obj->id] = 0;
+
+  #ifdef SERIAL_DEBUGING
+    Serial.print("=============== BUTTON "); Serial.print(obj->id); Serial.println(" HAS BEEN RELEASED ====================");
+    Serial.print("lock_remote_master: "); Serial.println(lock_remote_master);
+    Serial.print("cancel_release: "); Serial.println(cancel_release[obj->id]);
+  #endif
+
+  // toggle and update only if not locked, not homeing and not blocked
+  if( !lock_remote_master && !cancel_release[obj->id] && !homeing[obj->id] ) {
+
+    int pushed = obj->id;
+    toggle[pushed] = !toggle[pushed];
 
     obj->writeFadeRGB(3);
-    if ( toggle[obj->id] ){
+    if ( toggle[pushed] ){
         // coarse adjustemnt in blue
         obj->writeRGBCode(rgb2hex(0, 0, 255, brightness));
     } else {
         // fine adjustment in green
         obj->writeRGBCode(rgb2hex(0, 255, 0, brightness));
     }
+    // update pot step (toggle = 1 -> coarse, 0 -> fine)
+    if (toggle[pushed]) {
+      RGBEncoder[pushed].writeStep((int32_t) potCoarseStep[pushed]);
+    } else {
+      RGBEncoder[pushed].writeStep((int32_t) potFineStep[pushed]);
+    }
 
-
-    moveMotorToPosition(motorID, position);
-}
-
-void encoder_click(i2cEncoderLibV2* obj) {
-  int pushed = obj->id;
-  toggle[pushed] = !toggle[pushed];
-
-  obj->writeFadeRGB(3);
-  if ( toggle[pushed] ){
-      // coarse adjustemnt in blue
-      obj->writeRGBCode(rgb2hex(0, 0, 255, brightness));
-  } else {
-      // fine adjustment in green
-      obj->writeRGBCode(rgb2hex(0, 255, 0, brightness));
+    #ifdef SERIAL_DEBUGING
+      Serial.print("Toggle =  ");
+      Serial.print(toggle[0]);
+      Serial.print('\t');
+      Serial.print(toggle[1]);
+      Serial.print('\t');
+      Serial.println(toggle[2]);
+    #endif
   }
-  // update pot step (toggle = 1 -> coarse, 0 -> fine)
-  if (toggle[pushed]) {
-    RGBEncoder[pushed].writeStep((int32_t) potCoarseStep[pushed]);
-  } else {
-    RGBEncoder[pushed].writeStep((int32_t) potFineStep[pushed]);
-
-  }
-
-  #ifdef SERIAL_DEBUGING
-    Serial.print("Toggle =  ");
-    Serial.print(toggle[0]);
-    Serial.print('\t');
-    Serial.print(toggle[1]);
-    Serial.print('\t');
-    Serial.println(toggle[2]);
-  #endif
 
 }
 
 void encoder_thresholds(i2cEncoderLibV2* obj) {
+
   if (obj->readStatus(i2cEncoderLibV2::RMAX))
     {
       #ifdef SERIAL_DEBUGING
@@ -291,8 +335,11 @@ void encoder_thresholds(i2cEncoderLibV2* obj) {
         Serial.println(obj->id);
       #endif
     }
-    obj->writeRGBCode(rgb2hex(255, 0, 0, brightness));
+    if (!lock_remote_master){
+      obj->writeRGBCode(rgb2hex(255, 0, 0, brightness));
+    }
 }
+
 
 void encoder_fade(i2cEncoderLibV2* obj) {
   obj->writeRGBCode(0x000000);
@@ -343,9 +390,9 @@ void apertureMoveToOSChandler(OSCMessage &msg, int addrOffset) {
   int inValue = receiveOSCvalue(msg);
 
   if (remote_connected){
-    RGBEncoder[0].writeCounter((int32_t) inValue); //Reset of the CVAL register
+    RGBEncoder[1].writeCounter((int32_t) inValue); //Reset of the CVAL register
   }
-  moveMotorToPosition(0, inValue);
+  moveMotorToPosition(1, inValue);
   lock_remote_on_osc = false;
 }
 
@@ -353,9 +400,9 @@ void focusMoveToOSChandler(OSCMessage &msg, int addrOffset) {
   int inValue = receiveOSCvalue(msg);
 
   if (remote_connected){
-      RGBEncoder[1].writeCounter((int32_t) inValue); //Reset of the CVAL register
+      RGBEncoder[0].writeCounter((int32_t) inValue); //Reset of the CVAL register
   }
-  moveMotorToPosition(1, inValue);
+  moveMotorToPosition(0, inValue);
   lock_remote_on_osc = false;
 }
 
@@ -377,20 +424,38 @@ long r_g_b2rgb(int r, int g, int b){
 
 void apertureLedOSChandler(OSCMessage &msg, int addrOffset) {
   long rgb = r_g_b2rgb(msg.getInt(0), msg.getInt(1), msg.getInt(2));
-  RGBEncoder[0].writeFadeRGB(0);
-  RGBEncoder[0].writeRGBCode(rgb);
-  lock_remote_on_osc = false;
-}
 
-void focusLedOSChandler(OSCMessage &msg, int addrOffset) {
-  long rgb = r_g_b2rgb(msg.getInt(0), msg.getInt(1), msg.getInt(2));
+  #ifdef SERIAL_DEBUGING
+    Serial.print("aperture led hex: ");
+    Serial.println(rgb);
+  #endif
+
   RGBEncoder[1].writeFadeRGB(0);
   RGBEncoder[1].writeRGBCode(rgb);
   lock_remote_on_osc = false;
 }
 
+void focusLedOSChandler(OSCMessage &msg, int addrOffset) {
+  long rgb = r_g_b2rgb(msg.getInt(0), msg.getInt(1), msg.getInt(2));
+
+  #ifdef SERIAL_DEBUGING
+    Serial.print("focus led hex: ");
+    Serial.println(rgb);
+  #endif
+
+  RGBEncoder[0].writeFadeRGB(0);
+  RGBEncoder[0].writeRGBCode(rgb);
+  lock_remote_on_osc = false;
+}
+
 void zoomLedOSChandler(OSCMessage &msg, int addrOffset) {
   long rgb = r_g_b2rgb(msg.getInt(0), msg.getInt(1), msg.getInt(2));
+
+  #ifdef SERIAL_DEBUGING
+    Serial.print("zoom led hex: ");
+    Serial.println(rgb);
+  #endif
+
   RGBEncoder[2].writeFadeRGB(0);
   RGBEncoder[2].writeRGBCode(rgb);
   lock_remote_on_osc = false;
@@ -401,12 +466,6 @@ void zoomLedOSChandler(OSCMessage &msg, int addrOffset) {
 void resetAperturePositionOSCHandler(OSCMessage &msg, int addrOffset) {
   int inValue = receiveOSCvalue(msg);
 
-  #ifdef NEOPIXEL
-    // TODO add global color
-    pixels.setPixelColor(0, pixels.Color(255, 0, 0));
-    pixels.show();
-  #endif
-
   HOMING_POSITIONS[0] = inValue;
 
   lock_remote_on_osc = false;
@@ -415,12 +474,6 @@ void resetAperturePositionOSCHandler(OSCMessage &msg, int addrOffset) {
 void resetFocusPositionOSCHandler(OSCMessage &msg, int addrOffset) {
   int inValue = receiveOSCvalue(msg);
 
-  #ifdef NEOPIXEL
-    // TODO add global color
-    pixels.setPixelColor(0, pixels.Color(255, 0, 0));
-    pixels.show();
-  #endif
-
   HOMING_POSITIONS[1] = inValue;
 
   lock_remote_on_osc = false;
@@ -428,12 +481,6 @@ void resetFocusPositionOSCHandler(OSCMessage &msg, int addrOffset) {
 
 void resetZoomPositionOSCHandler(OSCMessage &msg, int addrOffset) {
   int inValue = receiveOSCvalue(msg);
-
-  #ifdef NEOPIXEL
-    // TODO add global color
-    pixels.setPixelColor(0, pixels.Color(255, 0, 0));
-    pixels.show();
-  #endif
 
   HOMING_POSITIONS[2] = inValue;
 
@@ -503,32 +550,37 @@ void setEncodersMaxOSChandler(OSCMessage &msg, int addrOffset) {
 }
 
 // ------------------------------- other handlers ------------------------------
+void resetMotorsPositions(int motor){
 
-
-void resetMotorsPositions(){
-
-  for (int i=0; i<3; i++){
-    homeing[i] = true;
-    moveMotorToPosition(i, HOMING_POSITIONS[i]);
-  }
+    homeing[motor] = true;
+    moveMotorToPosition(motor, HOMING_POSITIONS[motor]);
 }
 
-void resetOSChandler(OSCMessage &msg, int addrOffset) {
+void resetApertureOSChandler(OSCMessage &msg, int addrOffset) {
   int inValue = receiveOSCvalue(msg);
 
-  #ifdef NEOPIXEL
-    pixels.setPixelColor(0, pixels.Color(255, 0, 0));
-    pixels.show();
-  #endif
+  resetMotorsPositions(1);
+}
 
-  resetMotorsPositions();
+void resetFocusOSChandler(OSCMessage &msg, int addrOffset) {
+  int inValue = receiveOSCvalue(msg);
+
+  resetMotorsPositions(0);
+}
+
+void resetZoomOSChandler(OSCMessage &msg, int addrOffset) {
+  int inValue = receiveOSCvalue(msg);
+
+  resetMotorsPositions(2);
 }
 
 void brightnessHandler(OSCMessage &msg, int addrOffset) {
-  brightness = msg.getFloat(0);
+  float inValue = msg.getFloat(0);
+
+  brightness = inValue / 100.0;
 
   #ifdef SERIAL_DEBUGING
-    Serial.print("received brightness value: ");
+    Serial.print("brightness rescaled value: ");
     Serial.println(brightness);
   #endif
 
@@ -537,9 +589,44 @@ void brightnessHandler(OSCMessage &msg, int addrOffset) {
 
 void setEncoderLockOSChandler(OSCMessage &msg, int addrOffset) {
   int inValue = receiveOSCvalue(msg);
-  if (inValue == 0){ lock_remote_master = false; }
-  else { lock_remote_master = true; }
+  if (inValue == 0){
+    for (int i=0; i<3; i++){
+      RGBEncoder[i].onButtonPush = encoder_pushed;
+      RGBEncoder[i].onButtonRelease = encoder_released;
+      RGBEncoder[i].writeCounter((int32_t) -stepper[i]->currentPosition());
+      // update encoder with toggle state
+      // Serial.println("overwriting toggle");
+      if (toggle[i]) {
+        RGBEncoder[i].writeStep((int32_t) potCoarseStep[i]);
+      } else {
+        RGBEncoder[i].writeStep((int32_t) potFineStep[i]);
+      }
+    }
+    lock_remote_master = false;
+   }
 
+  if (inValue == 1){
+    for (int i=0; i<3; i++){
+      RGBEncoder[i].onButtonPush = NULL;
+      RGBEncoder[i].onButtonRelease = NULL;
+      RGBEncoder[i].writeStep((int32_t) 0);
+    }
+    lock_remote_master = true;
+  }
+
+  lock_remote_on_osc = false;
+}
+
+void setStatusLedOSChandler(OSCMessage &msg, int addrOffset) {
+  int inValue = receiveOSCvalue(msg);
+  if (inValue == 0){
+    status_led = false;
+    #ifdef NEOPIXEL
+      pixels.setPixelColor(0, pixels.Color(0, 0, 0));
+      pixels.show();
+    #endif
+  }
+  if (inValue == 1){ status_led = true; }
   lock_remote_on_osc = false;
 }
 
@@ -567,26 +654,35 @@ void receiveOSCsingle(){
     // route messages
     if(!msgIn.hasError()) {
 
+      #ifdef NEOPIXEL
+      if (status_led){
+          pixels.setPixelColor(0, pixels.Color(255, 0, 0));
+          pixels.show();
+      }
+      #endif
+
       lock_remote_on_osc = true;
 
       // block osc messages when at least on motor is homeing
       if(!homeing[0] && !homeing[1] && !homeing[2]){
-        msgIn.route("/resetPosition/aperture", resetAperturePositionOSCHandler);
-        msgIn.route("/resetPosition/focus", resetFocusPositionOSCHandler);
-        msgIn.route("/resetPosition/zoom", resetZoomPositionOSCHandler);
+        msgIn.route("/set/aperture/ressetposition", resetAperturePositionOSCHandler);
+        msgIn.route("/set/focus/resetposition", resetFocusPositionOSCHandler);
+        msgIn.route("/set/zoom/resetposition", resetZoomPositionOSCHandler);
 
-        msgIn.route("/aperture", apertureMoveToOSChandler);
-        msgIn.route("/focus", focusMoveToOSChandler);
-        msgIn.route("/zoom", zoomMoveToOSChandler);
+        msgIn.route("/set/aperture/position", apertureMoveToOSChandler);
+        msgIn.route("/set/focus/position", focusMoveToOSChandler);
+        msgIn.route("/set/zoom/position", zoomMoveToOSChandler);
 
-        msgIn.route("/reset", resetOSChandler);
+        msgIn.route("/reset/aperture", resetApertureOSChandler);
+        msgIn.route("/reset/focus", resetFocusOSChandler);
+        msgIn.route("/reset/zoom", resetZoomOSChandler);
       }
 
-      msgIn.route("/ledAperture", apertureLedOSChandler);
-      msgIn.route("/ledFocus", focusLedOSChandler);
-      msgIn.route("/ledZoom", zoomLedOSChandler);
+      msgIn.route("/set/encoders/led/aperture", apertureLedOSChandler);
+      msgIn.route("/set/encoders/led/focus", focusLedOSChandler);
+      msgIn.route("/set/encoders/led/zoom", zoomLedOSChandler);
 
-      msgIn.route("/brightness", brightnessHandler);
+      msgIn.route("/set/encoders/brightness", brightnessHandler);
       msgIn.route("/set/encoders/lock", setEncoderLockOSChandler);
 
       msgIn.route("/set/encoders/fine", setEncodersStepFineOSChandler);
@@ -595,11 +691,14 @@ void receiveOSCsingle(){
       msgIn.route("/set/encoders/min", setEncodersMinOSChandler);
       msgIn.route("/set/encoders/max", setEncodersMaxOSChandler);
 
-      msgIn.route("/set/interval", setIntervalOSChandler);
+      msgIn.route("/set/OSCfrequency", setIntervalOSChandler);
+      msgIn.route("/set/statusled", setStatusLedOSChandler);
 
       #ifdef NEOPIXEL
-        pixels.setPixelColor(0, pixels.Color(255, 0, 150));
-        pixels.show();
+        if (status_led){
+          pixels.setPixelColor(0, pixels.Color(255, 0, 150));
+          pixels.show();
+        }
       #endif
     }
 
@@ -611,54 +710,30 @@ void receiveOSCsingle(){
   }
 }
 
-void sendOSCmessage(char* name, int value){
-  char message_osc_header[32];
-  message_osc_header[0] = {0};
-  strcat(message_osc_header, osc_prefix);
-  strcat(message_osc_header, name);
-
-  // #ifdef SERIAL_DEBUGING
-  //   Serial.print("OSC header: ");
-  //   Serial.println(message_osc_header);
-  // #endif
-
-  OSCMessage message(message_osc_header);
-  message.add(value);
-  Udp.beginPacket(targetIP, destPort);
-  message.send(Udp);
-  Udp.endPacket();
-  message.empty();
-}
-
-void sendOSCreport(){
-  // #ifdef SERIAL_DEBUGING
-  //   Serial.print("Sending OSC raport ");
-  // #endif
-  // TODO fix sending -256 values when remote disconnected
-  sendOSCmessage("/aperture", -stepper[0]->currentPosition());
-  sendOSCmessage("/focus", -stepper[1]->currentPosition());
-  sendOSCmessage("/zoom", -stepper[2]->currentPosition());
-  sendOSCmessage("/uptime", uptimeInSecs());
-  sendOSCmessage("/ver", FIRMWARE_VERSION);
-  #ifdef SERIAL_DEBUGING
-    Serial.print(" *");
-  #endif
-}
-
 void sendOSCbundleReport(){
   //declare the bundle
   OSCBundle bndl;
-
-  // char message_osc_header[32];
-  // message_osc_header[0] = {0};
-  // strcat(message_osc_header, osc_prefix);
-  // strcat(message_osc_header, name);
 
   char message_osc_header_msg[32];
   message_osc_header_msg[0] = {0};
   strcat(message_osc_header_msg, osc_prefix);
   strcat(message_osc_header_msg, "/positions");
   bndl.add(message_osc_header_msg).add(-stepper[0]->currentPosition()).add(-stepper[1]->currentPosition()).add(-stepper[2]->currentPosition());
+
+  message_osc_header_msg[0] = {0};
+  strcat(message_osc_header_msg, osc_prefix);
+  strcat(message_osc_header_msg, "/encoders/min");
+  bndl.add(message_osc_header_msg).add(potMin[0]).add(potMin[1]).add(potMin[2]);
+
+  message_osc_header_msg[0] = {0};
+  strcat(message_osc_header_msg, osc_prefix);
+  strcat(message_osc_header_msg, "/encoders/max");
+  bndl.add(message_osc_header_msg).add(potMax[0]).add(potMax[1]).add(potMax[2]);
+
+  message_osc_header_msg[0] = {0};
+  strcat(message_osc_header_msg, osc_prefix);
+  strcat(message_osc_header_msg, "/positions/reset");
+  bndl.add(message_osc_header_msg).add(HOMING_POSITIONS[0]).add(HOMING_POSITIONS[1]).add(HOMING_POSITIONS[2]);
 
   message_osc_header_msg[0] = {0};
   strcat(message_osc_header_msg, osc_prefix);
@@ -669,12 +744,42 @@ void sendOSCbundleReport(){
   strcat(message_osc_header_msg, osc_prefix);
   strcat(message_osc_header_msg, "/encoders/coarse");
   bndl.add(message_osc_header_msg).add(potCoarseStep[0]).add(potCoarseStep[1]).add(potCoarseStep[2]);
-  // bndl.add("/encoders/min").add();
-  // bndl.add("/encoders/max").add();
+
   message_osc_header_msg[0] = {0};
   strcat(message_osc_header_msg, osc_prefix);
-  strcat(message_osc_header_msg, "/interval");
+  strcat(message_osc_header_msg, "/encoders/led/focus");
+  bndl.add(message_osc_header_msg).add(RGBEncoder[0].readLEDR()).add(RGBEncoder[0].readLEDG()).add(RGBEncoder[0].readLEDB());
+
+  message_osc_header_msg[0] = {0};
+  strcat(message_osc_header_msg, osc_prefix);
+  strcat(message_osc_header_msg, "/encoders/led/aperture");
+  bndl.add(message_osc_header_msg).add(RGBEncoder[1].readLEDR()).add(RGBEncoder[1].readLEDG()).add(RGBEncoder[1].readLEDB());
+
+  message_osc_header_msg[0] = {0};
+  strcat(message_osc_header_msg, osc_prefix);
+  strcat(message_osc_header_msg, "/encoders/led/zoom");
+  bndl.add(message_osc_header_msg).add(RGBEncoder[2].readLEDR()).add(RGBEncoder[2].readLEDG()).add(RGBEncoder[2].readLEDB());
+
+  message_osc_header_msg[0] = {0};
+  strcat(message_osc_header_msg, osc_prefix);
+  strcat(message_osc_header_msg, "/encoders/brightness");
+  int brightness_remapped = (int)(brightness * 100);
+  bndl.add(message_osc_header_msg).add(brightness_remapped);
+
+  message_osc_header_msg[0] = {0};
+  strcat(message_osc_header_msg, osc_prefix);
+  strcat(message_osc_header_msg, "/encoders/lock");
+  bndl.add(message_osc_header_msg).add((lock_remote_master == HIGH) ? 1 : 0);
+
+  message_osc_header_msg[0] = {0};
+  strcat(message_osc_header_msg, osc_prefix);
+  strcat(message_osc_header_msg, "/OSCfrequency");
   bndl.add(message_osc_header_msg).add(interval);
+
+  message_osc_header_msg[0] = {0};
+  strcat(message_osc_header_msg, osc_prefix);
+  strcat(message_osc_header_msg, "/statusled");
+  bndl.add(message_osc_header_msg).add((status_led == true) ? 1 : 0);
 
   message_osc_header_msg[0] = {0};
   strcat(message_osc_header_msg, osc_prefix);
@@ -683,15 +788,8 @@ void sendOSCbundleReport(){
 
   message_osc_header_msg[0] = {0};
   strcat(message_osc_header_msg, osc_prefix);
-  strcat(message_osc_header_msg, "/ver");
+  strcat(message_osc_header_msg, "/version");
   bndl.add(message_osc_header_msg).add(FIRMWARE_VERSION);
-
-  // bndl.add("/aperture").add(-stepper[0]->currentPosition());
-  // bndl.add("/focus").add(-stepper[1]->currentPosition());
-  // bndl.add("/zoom").add(-stepper[2]->currentPosition());
-  // bndl.add("/digital/5").add((digitalRead(5)==HIGH)?"HIGH":"LOW");
-  // bndl.add("/mouse/step").add((int32_t)analogRead(0)).add((int32_t)analogRead(1));
-  // bndl.add("/units").add("pixels");
 
   Udp.beginPacket(targetIP, destPort);
   bndl.send(Udp); // send the bytes to the SLIP stream
@@ -710,8 +808,10 @@ bool checkEthernetConnection(){
     #endif
 
     #ifdef NEOPIXEL
-      pixels.setPixelColor(0, pixels.Color(150, 0, 0));
-      pixels.show();
+      if (status_led){
+        pixels.setPixelColor(0, pixels.Color(150, 0, 0));
+        pixels.show();
+      }
     #endif
 
     return false;
@@ -722,8 +822,10 @@ bool checkEthernetConnection(){
     #endif
 
     #ifdef NEOPIXEL
-      pixels.setPixelColor(0, pixels.Color(150, 0, 0));
-      pixels.show();
+      if (status_led){
+        pixels.setPixelColor(0, pixels.Color(150, 0, 0));
+        pixels.show();
+      }
     #endif
 
     return false;
@@ -732,11 +834,6 @@ bool checkEthernetConnection(){
     #ifdef SERIAL_DEBUGING
       // Serial.println("Ethernet cable is connected.");
     #endif
-
-    // #ifdef NEOPIXEL
-    //   pixels.setPixelColor(0, pixels.Color(0, 0, 150));
-    //   pixels.show();
-    // #endif
 
     return true;
   }
@@ -768,7 +865,10 @@ void initiateEncoders(){
       RGBEncoder[enc_cnt].writeCounter((int32_t) 0); //Reset of the CVAL register
       RGBEncoder[enc_cnt].writeMax((int32_t) potMax[enc_cnt]); //Set the maximum threshold to
       RGBEncoder[enc_cnt].writeMin((int32_t) potMin[enc_cnt]); //Set the minimum threshold to
+
+      // TODO update Toggle array to encoders
       RGBEncoder[enc_cnt].writeStep((int32_t) potCoarseStep[enc_cnt]); //The step at every encoder click is 1
+
       RGBEncoder[enc_cnt].writeRGBCode(0);
       RGBEncoder[enc_cnt].writeFadeRGB(3); //Fade enabled with 3ms step
       RGBEncoder[enc_cnt].writeAntibouncingPeriod(25); //250ms of debouncing
@@ -776,7 +876,8 @@ void initiateEncoders(){
 
       /* Configure the events */
       RGBEncoder[enc_cnt].onChange = encoder_rotated;
-      RGBEncoder[enc_cnt].onButtonRelease = encoder_click;
+      RGBEncoder[enc_cnt].onButtonRelease = encoder_released;
+      RGBEncoder[enc_cnt].onButtonPush = encoder_pushed;
       RGBEncoder[enc_cnt].onMinMax = encoder_thresholds;
       RGBEncoder[enc_cnt].onFadeProcess = encoder_fade;
 
@@ -792,6 +893,7 @@ void remoteDisconnected(){
   #endif
   remote_connected = false;
   Wire.endTransmission();
+  // TODO fix sending -256 values when remote disconnected
 }
 
 void remoteConnected(){
@@ -804,10 +906,9 @@ void remoteConnected(){
   for (int i=0; i< 3; i++){
     RGBEncoder[i].writeCounter((int32_t) -stepper[i]->currentPosition());
   }
-
+  // TODO update toggle values
   remote_connected = true;
 }
-
 
 //******************************************************************************
 
@@ -819,8 +920,10 @@ void setup() {
     pixels.clear();
     pixels.show();
 
-    pixels.setPixelColor(0, pixels.Color(150, 150, 0));
-    pixels.show();
+    if (status_led){
+      pixels.setPixelColor(0, pixels.Color(150, 150, 0));
+      pixels.show();
+    }
   #endif
 
   #ifdef SERIAL_DEBUGING
@@ -931,8 +1034,10 @@ void setup() {
   #endif
 
   #ifdef NEOPIXEL
-    pixels.setPixelColor(0, pixels.Color(0, 150, 0));
-    pixels.show();
+    if (status_led){
+      pixels.setPixelColor(0, pixels.Color(0, 150, 0));
+      pixels.show();
+    }
   #endif
 }
 
@@ -964,16 +1069,19 @@ void loop() {
     if (isLANconnected){
 
       #ifdef NEOPIXEL
-        pixels.setPixelColor(0, pixels.Color(0, 255, 150));
-        pixels.show();
+        if (status_led){
+          pixels.setPixelColor(0, pixels.Color(0, 255, 150));
+          pixels.show();
+        }
       #endif
 
-      sendOSCreport();
-      // sendOSCbundleReport();
+      sendOSCbundleReport();
 
       #ifdef NEOPIXEL
-        pixels.setPixelColor(0, pixels.Color(0, 0, 150));
-        pixels.show();
+        if (status_led){
+          pixels.setPixelColor(0, pixels.Color(0, 0, 150));
+          pixels.show();
+        }
       #endif
     }
   }
@@ -981,14 +1089,40 @@ void loop() {
   // check pots
   uint8_t enc_cnt;
 
-  if ( remote_connected && !lock_remote_on_osc && !lock_remote_master ){
+  // check for button has been pressed and holded
+  if (remote_connected && !lock_remote_on_osc){
+    for (int i=0; i < 3; i++){
+      // check if button pressed
+      if (hold_timer[i] > 0){
+        // start timer
+        long time_now = millis();
+
+        // if button holded for treshold + 3sec -
+        if (time_now - hold_timer[i] > warning_time_passed + reset_time_passed){
+          #ifdef SERIAL_DEBUGING
+            Serial.println("MANUAL HOMEING");
+          #endif
+          RGBEncoder[i].writeRGBCode(rgb2hex(0, 0, 0, brightness));
+          hold_timer[i] = 0;
+          cancel_release[i] = true;
+          // home selected motor
+          resetMotorsPositions(i);
+          break;
+        } else if (time_now - hold_timer[i] > warning_time_passed){
+          RGBEncoder[i].writeRGBCode(rgb2hex(255, 147, 0, brightness));
+        }
+      }
+    }
+  }
+
+  if ( remote_connected && !lock_remote_on_osc ){
     if (digitalRead(INT_PIN) == LOW) {
       //Interrupt from the encoders, start to scan the encoder matrix
       for (enc_cnt = 0; enc_cnt < ENCODER_N; enc_cnt++) {
         if (digitalRead(INT_PIN) == HIGH) { //If the interrupt pin return high, exit from the encoder scan
           break;
         }
-        RGBEncoder[enc_cnt].updateStatus();
+          RGBEncoder[enc_cnt].updateStatus();
       }
     }
   }
@@ -996,7 +1130,18 @@ void loop() {
   for (int i=0; i<3; i++){
     stepper[i]->run();
 
+    // homeing indicator
+    if ( homeing[0] || homeing[1] || homeing[2] ){
+      #ifdef NEOPIXEL
+        if (status_led){
+          pixels.setPixelColor(0, pixels.Color(255, 147, 0));
+          pixels.show();
+        }
+      #endif
+    }
+
     if(homeing[i] && (-stepper[i]->currentPosition() == HOMING_POSITIONS[i]) ){
+
         stepper[i]->setCurrentPosition(0);
         if(remote_connected){
           RGBEncoder[i].writeCounter((int32_t) 0); //Reset of the CVAL register
@@ -1009,17 +1154,12 @@ void loop() {
 
         // if all restarted then unlock remote
         if ( !homeing[0] && !homeing[1] && !homeing[2] ){
-          Serial.println("All motors reset to 0");
+          #ifdef SERIAL_DEBUGING
+            Serial.println("All motors reset to 0");
+          #endif
           lock_remote_on_osc = false;
         }
     }
-
-    // #ifdef NEOPIXEL
-    //   pixels.setPixelColor(0, pixels.Color(0, 0, 0));
-    //   pixels.show();
-    // #endif
-
-    // TODO where to set homing to false, is it necessery?
   }
 
   #ifdef WEB_SERVER
@@ -1191,15 +1331,19 @@ void loop() {
                Serial.println("Web button pressed, turning neopixel white");
              #endif
              #ifdef NEOPIXEL
-               pixels.setPixelColor(0, pixels.Color(255, 255, 255));
-               pixels.show();
+               if (status_led){
+                 pixels.setPixelColor(0, pixels.Color(255, 255, 255));
+                 pixels.show();
+               }
              #endif
            }
            if (readString.indexOf("?buttonResetclicked") > 0){
              #ifdef SERIAL_DEBUGING
                Serial.println("reset button pressed, homeing motors");
              #endif
-             resetMotorsPositions();
+             resetMotorsPositions(0);
+             resetMotorsPositions(1);
+             resetMotorsPositions(2);
            }
 
 
