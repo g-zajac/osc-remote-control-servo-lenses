@@ -249,16 +249,16 @@ void encoder_rotated(i2cEncoderLibV2* obj) {
 }
 
 void encoder_pushed(i2cEncoderLibV2* obj) {
-  Serial.println("button pushed");
+  Serial.println("=============== BUTTON HAS BEEN OUSHED ====================");
   // TOD start timer if < 200ms then Toggle if > then homeing, millis check?
   Serial.println(RGBEncoder[0].readStatus());
 }
 
 void encoder_released(i2cEncoderLibV2* obj) {
-  int pushed = obj->id;
 
   // toggle and update only if locke off?
   if(!lock_remote_master){
+    int pushed = obj->id;
     toggle[pushed] = !toggle[pushed];
 
     obj->writeFadeRGB(3);
@@ -553,33 +553,32 @@ void brightnessHandler(OSCMessage &msg, int addrOffset) {
 void setEncoderLockOSChandler(OSCMessage &msg, int addrOffset) {
   int inValue = receiveOSCvalue(msg);
   if (inValue == 0){
+    RGBEncoder[0].onButtonPush = encoder_pushed;
+    RGBEncoder[0].onButtonRelease = encoder_released;
+    // RGBEncoder[0].writeStep((int32_t) potCoarseStep[0]);
     // turn on interrupts
-    RGBEncoder[0].writeInterruptConfig(i2cEncoderLibV2::INT_2 | i2cEncoderLibV2::RMIN | i2cEncoderLibV2::RMAX | i2cEncoderLibV2::RDEC | i2cEncoderLibV2::RINC |  i2cEncoderLibV2::PUSHR | i2cEncoderLibV2::PUSHP);
+    // RGBEncoder[0].writeInterruptConfig(i2cEncoderLibV2::INT_2 | i2cEncoderLibV2::RMIN | i2cEncoderLibV2::RMAX | i2cEncoderLibV2::RDEC | i2cEncoderLibV2::RINC |  i2cEncoderLibV2::PUSHR | i2cEncoderLibV2::PUSHP);
     // update, overwrite encoder with current motor position
     for (int i=0; i<3; i++){
       RGBEncoder[i].writeCounter((int32_t) -stepper[i]->currentPosition());
       // update encoder with toggle state
-      if (toggle[i]) {
-        RGBEncoder[i].writeStep((int32_t) potCoarseStep[i]);
-      } else {
-        RGBEncoder[i].writeStep((int32_t) potFineStep[i]);
-      }
+      // Serial.println("overwriting toggle");
+      // if (toggle[i]) {
+      //   RGBEncoder[i].writeStep((int32_t) potCoarseStep[i]);
+      // } else {
+      //   RGBEncoder[i].writeStep((int32_t) potFineStep[i]);
+      // }
     }
+
     lock_remote_master = false;
-
-    #ifdef SERIAL_DEBUGING
-      Serial.print("Toggle =  ");
-      Serial.print(toggle[0]);
-      Serial.print('\t');
-      Serial.print(toggle[1]);
-      Serial.print('\t');
-      Serial.println(toggle[2]);
-    #endif
-
    }
   if (inValue == 1){
+    RGBEncoder[0].onButtonPush = NULL;
+    RGBEncoder[0].onButtonRelease = NULL;
+    RGBEncoder[0].writeStep((int32_t) 0);
     // turn off all interrupts
-    RGBEncoder[0].writeInterruptConfig(i2cEncoderLibV2::INT_2);
+    // RGBEncoder[0].writeInterruptConfig(i2cEncoderLibV2::INT_2);
+
     lock_remote_master = true; }
   lock_remote_on_osc = false;
 }
@@ -1064,6 +1063,14 @@ void loop() {
           break;
         }
           RGBEncoder[enc_cnt].updateStatus();
+
+          // if (RGBEncoder[enc_cnt].updateStatus()){
+          //   if (RGBEncoder[enc_cnt].readStatus(i2cEncoderLibV2::RINC)){
+          //     Serial.print("Increment: ");
+          //     Serial.println(RGBEncoder[enc_cnt].readCounterByte());
+          //   }
+          // }
+
       }
     }
   }
