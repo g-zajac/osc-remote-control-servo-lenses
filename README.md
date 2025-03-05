@@ -27,7 +27,7 @@ All comopnents are soldered on custom designed PCB. There are few SMD capacitors
 
 ## Libraries versions
 
-State of 05.03.2025 after working and fixing "jamming" issue.
+State of 05.03.2025 after working and fixing "jamming" issue, FW ver 3.4.7
 
 ```bash
 Dependency Graph

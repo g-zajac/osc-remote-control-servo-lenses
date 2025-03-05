@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 341
+#define FIRMWARE_VERSION 347
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
