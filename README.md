@@ -12,7 +12,7 @@ Various existing applications can be used for remote control i.e Isadora, TouchO
 * ethernet wiz5500 module
 * 3x DRV8823 stepper driver
 * 3x (focus, zoom, aperture) mini stepper motors GM1527-10
-* [rotary encoder with RGB led from Saimon](https://github.com/Fattoresaimon/I2CEncoderV2.1)
+* [rotary encoder with RGB led from Saimon](https://github.com/Fattoresaimon/I2CEncoderV2.1) - Hardware V2.1
 
 #### Construction
 
@@ -25,10 +25,27 @@ All comopnents are soldered on custom designed PCB. There are few SMD capacitors
 * [Atom](https://atom.io) - An amazing text editor
 * [PlatformIO](https://platformio.org) - An ecosystem for embedded development
 
+## Libraries versions
+
+State of 05.03.2025 after working and fixing "jamming" issue.
+
+```bash
+Dependency Graph
+|-- Ethernet @ 2.0.2
+|-- EthernetBonjour @ 1.0.0
+|-- AccelStepper @ 1.64.0
+|-- SPI @ 1.0.0+sha.52f8402
+|-- DuPPa Library @ 1.2.0+sha.ba86fe9
+|-- Adafruit NeoPixel @ 1.1.7
+|-- Bounce2 @ 2.55
+|-- EEPROM @ 2.0
+|-- OSC
+|-- Wire @ 1.0
+```
 
 ## License
 This project is licensed under [MIT license](http://opensource.org/licenses/mit-license.php)
 
 ## Project status
-- Prototype V1.0 finished and working.
-- Firmware under development.
+- Hardware V1.0 finished and working.
+- Firmware completed, tested, working.
