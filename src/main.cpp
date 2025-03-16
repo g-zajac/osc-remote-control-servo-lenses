@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 349
+#define FIRMWARE_VERSION 351
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -174,7 +174,7 @@ IPAddress gateway(10, 0, 10, 1);
 EthernetUDP Udp;
 
 // OSC destination address, 255 broadcast
-IPAddress targetIP(10, 0, 10, 101);   // Isadora machine IP address
+IPAddress targetIP(10, 0, 10, 255);   // Isadora machine IP address
 const unsigned int destPort = 1234;          // remote port to receive OSC
 const unsigned int localPort = 4321;        // local port to listen for OSC packets
 
@@ -198,6 +198,16 @@ char osc_prefix[16];                  // device OSC prefix message, i.e /camera1
 bool status_led = true;
 
 //***************************** Functions *************************************
+// bool isDeviceOnlineUDP(IPAddress targetIP, uint16_t port = 1234) {
+//   EthernetUDP udp;
+//   udp.beginPacket(targetIP, port);
+//   udp.write((uint8_t)0); // Send an empty packet
+//   udp.endPacket();
+
+//   delay(10);  // Small delay for response check (non-blocking)
+//   return udp.parsePacket() > 0;  // If response, device is online
+// }
+
 
 void moveMotorToPosition(uint8_t motor, int position){
       #ifdef SERIAL_DEBUGING
@@ -793,13 +803,26 @@ void sendOSCbundleReport(){
   strcat(message_osc_header_msg, osc_prefix);
   strcat(message_osc_header_msg, "/version");
   bndl.add(message_osc_header_msg).add(FIRMWARE_VERSION);
+  
+  // Only send UDP data if 10.0.10.101 is online
+  // if (isDeviceOnlineUDP(targetIP)) {
+  //     Udp.beginPacket(targetIP, destPort);
+  //     bndl.send(Udp); // send the bytes to the SLIP stream
+  //     Udp.endPacket(); // mark the end of the OSC Packet
+  //     bndl.empty(); // empty the bundle to free room for a new one
+  //     #ifdef SERIAL_DEBUGING
+  //       Serial.print(" | sending report");
+  //     #endif
+  // } else {
+  //     Serial.println("Skipping UDP send: Target unavailable.");
+  // }
 
   Udp.beginPacket(targetIP, destPort);
   bndl.send(Udp); // send the bytes to the SLIP stream
   Udp.endPacket(); // mark the end of the OSC Packet
   bndl.empty(); // empty the bundle to free room for a new one
   #ifdef SERIAL_DEBUGING
-    Serial.print(" *");
+    Serial.print(" | sending report");
   #endif
 }
 
@@ -807,7 +830,7 @@ bool checkEthernetConnection(){
   // // Check for Ethernet hardware present
   if (Ethernet.hardwareStatus() == EthernetNoHardware) {
     #ifdef SERIAL_DEBUGING
-      // Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
+      Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
     #endif
 
     #ifdef NEOPIXEL
@@ -981,21 +1004,27 @@ void setup() {
   digitalWrite(9, LOW);    // begin reset the WIZ820io
   pinMode(10, OUTPUT);
   digitalWrite(10, HIGH);  // de-select WIZ820io
-  delay(500);  
+  delay(200);  
   digitalWrite(9, HIGH);   // end reset pulse
 
   Ethernet.init(10);
-  delay(500);
+  delay(100);
   // start the Ethernet connection
   Ethernet.begin(mac, ip, gateway, subnet);
  
-  delay(1000);
-  
   IPAddress newGateway(10, 0, 10, 1);
   Ethernet.setGatewayIP(newGateway);
 
-  Ethernet.setRetransmissionTimeout(2000); // Lower timeout to prevent lockups
-  Ethernet.setRetransmissionCount(3);  // Retry fewer times for better recovery  
+/*
+  Timeout (ms)	Behavior
+  2000 (default)	Waits 2 sec before retrying, good for slow networks but delays recovery.
+  500	Faster retries, but still allows some network delay.
+  50	Very aggressive retries, but may cause unnecessary retransmissions on slow networks.
+
+  200/3   This balances performance and reliability.
+*/
+  // Ethernet.setRetransmissionTimeout(1000); // Lower timeout to prevent lockups
+  // Ethernet.setRetransmissionCount(3);  // Retry fewer times for better recovery  
 
   #ifdef SERIAL_DEBUGING
     Serial.print("Manually Set Gateway IP: ");
