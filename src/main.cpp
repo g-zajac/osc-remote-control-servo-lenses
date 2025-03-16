@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 347
+#define FIRMWARE_VERSION 348
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -26,7 +26,7 @@
 #define MOTOR3DIR_PIN 15
 #define MOTOR3STEP_PIN 14
 
-
+ 
 #define ENCODER_N 3 //Number limit of the encoder
 #define INT_PIN 17 // Definition of the encoder interrupt pin
 #define POT_CHECK 4
@@ -166,6 +166,9 @@ IPAddress ip(10, 0, 10, IP_ARRAY[device_id]);
 
 bool isLANconnected = false;
 // bool isUDPconnected = false;
+
+IPAddress subnet(255, 255, 255, 0); // Subnet mask (for local network)
+IPAddress gateway(10, 0, 10, 1);
 
 //----------------------------- Setup for OSC ----------------------------------
 EthernetUDP Udp;
@@ -976,10 +979,10 @@ void setup() {
   digitalWrite(9, HIGH);   // end reset pulse
 
   Ethernet.init(10);
-
+  delay(500);
   // start the Ethernet connection
-  Ethernet.begin(mac, ip);
-
+  Ethernet.begin(mac, ip, gateway, subnet);
+  delay(1000);
   //Create OSC message header with unit number
   osc_prefix[0] = {0};
   strcat(osc_prefix, "/camera");
