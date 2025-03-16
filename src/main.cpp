@@ -1,4 +1,4 @@
-#define FIRMWARE_VERSION 348
+#define FIRMWARE_VERSION 349
 
 // device_id, numer used a position in array to get last octet of MAC and static IP
 // prototype 0, unit 1, unit 2... unit 7.
@@ -944,6 +944,11 @@ void setup() {
     Serial.println();
   #endif
 
+  #ifdef SERIAL_DEBUGING
+    Serial.print("Read device_id from EEPROM: ");
+    Serial.println(device_id);
+    Serial.println("");
+  #endif
   // Check if encoders are connected, only on startup, not hotpluging yet
   // pinMode(POT_CHECK, INPUT_PULLUP); // LOW when remote is connected
   potCheck.attach(POT_CHECK, INPUT_PULLUP);
@@ -976,13 +981,27 @@ void setup() {
   digitalWrite(9, LOW);    // begin reset the WIZ820io
   pinMode(10, OUTPUT);
   digitalWrite(10, HIGH);  // de-select WIZ820io
+  delay(500);  
   digitalWrite(9, HIGH);   // end reset pulse
 
   Ethernet.init(10);
   delay(500);
   // start the Ethernet connection
   Ethernet.begin(mac, ip, gateway, subnet);
+ 
   delay(1000);
+  
+  IPAddress newGateway(10, 0, 10, 1);
+  Ethernet.setGatewayIP(newGateway);
+
+  Ethernet.setRetransmissionTimeout(2000); // Lower timeout to prevent lockups
+  Ethernet.setRetransmissionCount(3);  // Retry fewer times for better recovery  
+
+  #ifdef SERIAL_DEBUGING
+    Serial.print("Manually Set Gateway IP: ");
+    Serial.println(Ethernet.gatewayIP());
+  #endif
+
   //Create OSC message header with unit number
   osc_prefix[0] = {0};
   strcat(osc_prefix, "/camera");
